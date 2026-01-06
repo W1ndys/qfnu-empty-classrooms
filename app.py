@@ -13,7 +13,7 @@
 
 import os
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from user_agents import parse
 

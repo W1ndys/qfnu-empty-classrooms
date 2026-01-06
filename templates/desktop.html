@@ -3,14 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>空教室查询</title>
+    <title>空教室查询 - 曲阜师范大学</title>
     <!-- Element Plus CSS -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- Element Plus Icons -->
+    <link rel="stylesheet" href="https://unpkg.com/@element-plus/icons-vue">
     <style>
         :root {
+            /* 主色 - 曲奇棕 */
             --primary-color: #885021;
-            --primary-light: #C4956A;
+            --primary-color-light: #8B5A2B;
+            --primary-color-dark: #5D3615;
+            --primary-color-opacity-10: rgba(118, 69, 28, 0.1);
+            --primary-color-opacity-5: rgba(118, 69, 28, 0.05);
+
+            /* 辅助色 */
             --cream-color: #F5E6D3;
+            --caramel-color: #C4956A;
+
+            /* 语义色 */
+            --success-color: #34C759;
+            --warning-color: #FF9500;
+            --danger-color: #FF3B30;
+            --info-color: #007AFF;
+
+            /* 中性色 */
+            --text-primary: #1C1C1E;
+            --text-secondary: #8E8E93;
+            --text-tertiary: #C7C7CC;
+            --bg-primary: #F2F2F7;
+            --bg-secondary: #FFFFFF;
+            --bg-tertiary: #E5E5EA;
+
+            /* 间距 */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 12px;
+            --spacing-lg: 16px;
+            --spacing-xl: 20px;
+            --spacing-xxl: 24px;
+
+            /* 圆角 */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --radius-full: 9999px;
+
+            /* 阴影 */
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+
+            /* 动画 */
+            --duration-fast: 150ms;
+            --duration-normal: 250ms;
+            --duration-slow: 350ms;
+
+            /* Element Plus 主题覆盖 */
+            --el-color-primary: #885021;
+            --el-color-primary-light-3: #A67C52;
+            --el-color-primary-light-5: #C4956A;
+            --el-color-primary-light-7: #F5E6D3;
+            --el-color-primary-light-9: rgba(118, 69, 28, 0.1);
+            --el-color-primary-dark-2: #5D3615;
         }
 
         * {
@@ -20,462 +76,613 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
+        #app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* 头部 */
+        /* 顶部导航 */
         .header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
-            color: white;
-            padding: 32px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            box-shadow: 0 8px 24px rgba(136, 80, 33, 0.2);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid var(--bg-tertiary);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 0 var(--spacing-xxl);
         }
 
-        .header h1 {
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-color);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--spacing-xxl);
+            width: 100%;
+        }
+
+        /* 日期信息卡片 */
+        .date-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xxl);
+            margin-bottom: var(--spacing-xl);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .date-card__left {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xl);
+        }
+
+        .date-card__main {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+
+        .date-card__title {
             font-size: 28px;
             font-weight: 600;
-            margin-bottom: 16px;
+            color: var(--text-primary);
         }
 
-        .header-info {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .info-tag {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            backdrop-filter: blur(4px);
-        }
-
-        /* 工具栏 */
-        .toolbar {
-            background: white;
-            padding: 20px 24px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            display: flex;
-            gap: 16px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .toolbar .el-input {
-            max-width: 300px;
-        }
-
-        /* 时间段筛选 */
-        .filter-section {
-            background: white;
-            padding: 20px 24px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-        }
-
-        .filter-title {
-            font-size: 14px;
-            color: #909399;
-            margin-bottom: 12px;
-        }
-
-        /* 教学楼卡片 */
-        .building-card {
-            background: white;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            overflow: hidden;
-            transition: box-shadow 0.3s ease;
-        }
-
-        .building-card:hover {
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .building-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
-            color: white;
-            padding: 16px 24px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .building-name {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .building-stats {
-            display: flex;
-            gap: 16px;
-        }
-
-        .stat-item {
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .stat-label {
-            font-size: 11px;
-            opacity: 0.85;
-        }
-
-        .building-body {
-            padding: 24px;
-        }
-
-        .classroom-section {
-            margin-bottom: 20px;
-        }
-
-        .classroom-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .section-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        .section-dot.slot-1-2 { background: #67C23A; }
-        .section-dot.slot-3-4 { background: #E6A23C; }
-        .section-dot.slot-5-6 { background: #409EFF; }
-        .section-dot.slot-7-8 { background: #9B59B6; }
-        .section-dot.slot-9-11 { background: #F56C6C; }
-
-        .section-title {
+        .date-card__subtitle {
             font-size: 15px;
-            font-weight: 500;
-            color: #303133;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
         }
 
-        .classroom-list {
+        .date-card__subtitle-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .date-card__weekday {
+            font-size: 15px;
+            color: var(--primary-color);
+            font-weight: 500;
+            background: var(--primary-color-opacity-10);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-full);
+        }
+
+        /* 内容布局 */
+        .content-layout {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: var(--spacing-xl);
+        }
+
+        /* 侧边栏 - 教学楼列表 */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-sm);
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+
+        .sidebar-title {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: var(--spacing-sm) var(--spacing-md);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .building-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+
+        .building-item {
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--duration-fast) ease-out;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .building-item:hover {
+            background: var(--primary-color-opacity-5);
+        }
+
+        .building-item.active {
+            background: var(--primary-color-opacity-10);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* 主内容 - 时间段列表 */
+        .main-panel {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-lg);
+        }
+
+        .time-slot-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: box-shadow var(--duration-normal) ease-out;
+        }
+
+        .time-slot-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .time-slot-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--spacing-lg) var(--spacing-xl);
+            border-bottom: 0.5px solid var(--bg-tertiary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .time-slot-header:hover {
+            background: var(--primary-color-opacity-5);
+        }
+
+        .time-slot-left {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .time-slot-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color-opacity-10);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            font-size: 18px;
+        }
+
+        .time-slot-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .time-slot-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .time-slot-time {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .time-slot-right {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .time-slot-count {
+            font-size: 14px;
+            color: var(--bg-secondary);
+            background: var(--primary-color);
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: var(--radius-full);
+            font-weight: 500;
+        }
+
+        .time-slot-count--empty {
+            background: var(--text-tertiary);
+        }
+
+        .time-slot-arrow {
+            color: var(--text-tertiary);
+            transition: transform var(--duration-fast) ease-out;
+        }
+
+        .time-slot-arrow.expanded {
+            transform: rotate(180deg);
+        }
+
+        .time-slot-body {
+            padding: var(--spacing-xl);
+            background: var(--primary-color-opacity-5);
+        }
+
+        .classroom-grid {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: var(--spacing-sm);
         }
 
         .classroom-tag {
-            background: #f5f7fa;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #606266;
-            transition: all 0.2s ease;
+            font-size: 14px;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--primary-color);
+            font-weight: 500;
+            border: 1px solid var(--primary-color-opacity-10);
+            transition: all var(--duration-fast) ease-out;
+            cursor: default;
         }
 
         .classroom-tag:hover {
-            background: var(--cream-color);
-            color: var(--primary-color);
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
         }
 
-        .highlight {
-            background: var(--cream-color);
-            color: var(--primary-color);
-            padding: 0 2px;
-            border-radius: 2px;
-            font-weight: 500;
+        .empty-tip {
+            color: var(--text-tertiary);
+            font-size: 14px;
+            text-align: center;
+            padding: var(--spacing-xl) 0;
         }
 
-        /* 加载和空状态 */
-        .loading-container, .empty-container {
+        /* 加载状态 */
+        .loading-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 80px 20px;
-            color: #909399;
+            padding: 100px var(--spacing-lg);
         }
 
-        .loading-container .el-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            animation: spin 1s linear infinite;
+        .loading-text {
+            margin-top: var(--spacing-lg);
+            color: var(--text-secondary);
+            font-size: 15px;
         }
 
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        /* 错误状态 */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 100px var(--spacing-lg);
+            text-align: center;
         }
 
-        /* 页脚 */
+        .error-icon {
+            font-size: 64px;
+            color: var(--danger-color);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .error-text {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: var(--spacing-xxl);
+            line-height: 1.6;
+        }
+
+        /* 底部信息 */
         .footer {
             text-align: center;
-            padding: 24px;
-            color: #909399;
-            font-size: 12px;
+            padding: var(--spacing-xxl) var(--spacing-lg);
+            color: var(--text-tertiary);
+            font-size: 13px;
+            border-top: 0.5px solid var(--bg-tertiary);
+            background: var(--bg-secondary);
         }
 
-        /* 切换到移动端链接 */
-        .switch-device {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
+        .footer-links {
+            margin-top: var(--spacing-sm);
+        }
+
+        .footer-links a {
+            color: var(--primary-color);
+            text-decoration: none;
+            margin: 0 var(--spacing-sm);
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
+        /* Element Plus 样式覆盖 */
+        .el-button--primary {
+            --el-button-bg-color: var(--primary-color);
+            --el-button-border-color: var(--primary-color);
+            --el-button-hover-bg-color: var(--primary-color-light);
+            --el-button-hover-border-color: var(--primary-color-light);
+            --el-button-active-bg-color: var(--primary-color-dark);
+            --el-button-active-border-color: var(--primary-color-dark);
+        }
+
+        .el-button--primary.is-plain {
+            --el-button-text-color: var(--primary-color);
+            --el-button-bg-color: var(--primary-color-opacity-10);
+            --el-button-border-color: transparent;
+            --el-button-hover-text-color: var(--primary-color);
+            --el-button-hover-bg-color: var(--primary-color-opacity-10);
+            --el-button-hover-border-color: var(--primary-color);
+        }
+
+        .el-loading-spinner .circular {
+            stroke: var(--primary-color) !important;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 900px) {
+            .content-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+
+            .building-list {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .building-item {
+                flex: none;
+            }
+
+            .main-content {
+                padding: var(--spacing-lg);
+            }
+
+            .date-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--spacing-lg);
+            }
+
+            .date-card__left {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        /* 折叠过渡动画 */
+        .collapse-enter-active,
+        .collapse-leave-active {
+            transition: all var(--duration-normal) ease-out;
+            overflow: hidden;
+        }
+
+        .collapse-enter-from,
+        .collapse-leave-to {
+            opacity: 0;
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .collapse-enter-to,
+        .collapse-leave-from {
+            opacity: 1;
+            max-height: 500px;
         }
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="container">
-            <!-- 头部信息 -->
-            <div class="header">
-                <h1>空教室查询</h1>
-                <div class="header-info" v-if="data">
-                    <span class="info-tag">{{ data.date }} 星期{{ data.weekday_name }}</span>
-                    <span class="info-tag">{{ data.semester }}</span>
-                    <span class="info-tag">第{{ data.week }}周</span>
+    <div id="app" v-cloak>
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <el-icon><school /></el-icon>
+                    </div>
+                    <span class="logo-text">曲阜师范大学 · 空教室查询</span>
+                </div>
+                <div class="header-actions">
+                    <el-button
+                        type="primary"
+                        plain
+                        :loading="refreshing"
+                        @click="handleRefresh"
+                    >
+                        <el-icon v-if="!refreshing"><refresh /></el-icon>
+                        {{ refreshing ? '刷新中...' : '刷新数据' }}
+                    </el-button>
                 </div>
             </div>
+        </header>
 
-            <!-- 工具栏 -->
-            <div class="toolbar">
-                <el-input
-                    v-model="searchKeyword"
-                    placeholder="搜索教室..."
-                    clearable
-                    :prefix-icon="Search"
-                    size="large"
-                ></el-input>
-
-                <el-button
-                    type="primary"
-                    :loading="loading"
-                    @click="refreshData"
-                    :icon="Refresh"
-                    size="large"
-                >
-                    刷新数据
-                </el-button>
-
-                <el-tag v-if="data" type="info">
-                    更新时间: {{ data.query_time }}
-                </el-tag>
-            </div>
-
-            <!-- 时间段筛选 -->
-            <div class="filter-section">
-                <div class="filter-title">选择时间段（可多选）</div>
-                <el-checkbox-group v-model="selectedSlots">
-                    <el-checkbox-button label="slot_1_2">第1-2节</el-checkbox-button>
-                    <el-checkbox-button label="slot_3_4">第3-4节</el-checkbox-button>
-                    <el-checkbox-button label="slot_5_6">第5-6节</el-checkbox-button>
-                    <el-checkbox-button label="slot_7_8">第7-8节</el-checkbox-button>
-                    <el-checkbox-button label="slot_9_11">第9-11节</el-checkbox-button>
-                </el-checkbox-group>
-                <el-button
-                    v-if="selectedSlots.length > 0"
-                    link
-                    type="primary"
-                    @click="selectedSlots = []"
-                    style="margin-left: 12px;"
-                >
-                    清除筛选
-                </el-button>
-            </div>
-
+        <!-- 主内容区 -->
+        <main class="main-content">
             <!-- 加载状态 -->
-            <div class="loading-container" v-if="loading">
-                <el-icon><Loading></Loading></el-icon>
-                <p>正在查询空教室...</p>
+            <div v-if="loading && !data" class="loading-container">
+                <el-icon class="is-loading" :size="48" color="#885021">
+                    <loading />
+                </el-icon>
+                <div class="loading-text">正在加载空教室数据...</div>
             </div>
 
             <!-- 错误状态 -->
-            <el-alert
-                v-if="error"
-                :title="error"
-                type="error"
-                :closable="false"
-                show-icon
-                style="margin-bottom: 24px;"
-            />
-
-            <!-- 调试信息 -->
-            <div style="background: #ffe; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
-                <p>调试: loading={{ loading }}, data存在={{ !!data }}, buildings数量={{ data?.buildings?.length || 0 }}, filteredBuildings数量={{ filteredBuildings.length }}</p>
+            <div v-else-if="error && !data" class="error-container">
+                <el-icon :size="64" color="#FF3B30">
+                    <warning-filled />
+                </el-icon>
+                <div class="error-text">{{ error }}</div>
+                <el-button type="primary" size="large" @click="fetchData">
+                    重新加载
+                </el-button>
             </div>
 
-            <!-- 教学楼列表 -->
-            <template v-if="!loading && data">
-                <div
-                    v-for="building in filteredBuildings"
-                    :key="building.name"
-                    class="building-card"
-                >
-                    <div
-                        class="building-header"
-                        @click="toggleBuilding(building.name)"
-                    >
-                        <span class="building-name">{{ building.name }}</span>
-                        <div class="building-stats">
-                            <div class="stat-item" v-if="isSlotVisible('slot_1_2')">
-                                <div class="stat-value">{{ getVisibleCount(building, 'slot_1_2') }}</div>
-                                <div class="stat-label">1-2节</div>
+            <!-- 数据展示 -->
+            <template v-else-if="data">
+                <!-- 日期信息卡片 -->
+                <div class="date-card">
+                    <div class="date-card__left">
+                        <div class="date-card__main">
+                            <div class="date-card__title">{{ data.date }}</div>
+                            <div class="date-card__subtitle">
+                                <span class="date-card__subtitle-item">
+                                    <el-icon><calendar /></el-icon>
+                                    第{{ data.week }}周
+                                </span>
+                                <span class="date-card__subtitle-item">
+                                    <el-icon><clock /></el-icon>
+                                    更新于 {{ data.query_time }}
+                                </span>
                             </div>
-                            <div class="stat-item" v-if="isSlotVisible('slot_3_4')">
-                                <div class="stat-value">{{ getVisibleCount(building, 'slot_3_4') }}</div>
-                                <div class="stat-label">3-4节</div>
-                            </div>
-                            <div class="stat-item" v-if="isSlotVisible('slot_5_6')">
-                                <div class="stat-value">{{ getVisibleCount(building, 'slot_5_6') }}</div>
-                                <div class="stat-label">5-6节</div>
-                            </div>
-                            <div class="stat-item" v-if="isSlotVisible('slot_7_8')">
-                                <div class="stat-value">{{ getVisibleCount(building, 'slot_7_8') }}</div>
-                                <div class="stat-label">7-8节</div>
-                            </div>
-                            <div class="stat-item" v-if="isSlotVisible('slot_9_11')">
-                                <div class="stat-value">{{ getVisibleCount(building, 'slot_9_11') }}</div>
-                                <div class="stat-label">9-11节</div>
-                            </div>
-                            <el-icon :style="{ transform: collapsedBuildings.includes(building.name) ? 'rotate(-90deg)' : 'rotate(0)' }">
-                                <ArrowDown></ArrowDown>
-                            </el-icon>
                         </div>
+                        <div class="date-card__weekday">周{{ data.weekday_name }}</div>
                     </div>
-
-                    <el-collapse-transition>
-                        <div class="building-body" v-show="!collapsedBuildings.includes(building.name)">
-                            <!-- 第1-2节 -->
-                            <div class="classroom-section" v-if="isSlotVisible('slot_1_2')">
-                                <div class="section-header">
-                                    <span class="section-dot slot-1-2"></span>
-                                    <span class="section-title">第1-2节无课 ({{ filterClassrooms(building.slot_1_2).length }} 间)</span>
-                                </div>
-                                <div class="classroom-list" v-if="filterClassrooms(building.slot_1_2).length > 0">
-                                    <span
-                                        class="classroom-tag"
-                                        v-for="room in filterClassrooms(building.slot_1_2)"
-                                        :key="room"
-                                        v-html="highlightKeyword(room)"
-                                    ></span>
-                                </div>
-                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
-                            </div>
-
-                            <!-- 第3-4节 -->
-                            <div class="classroom-section" v-if="isSlotVisible('slot_3_4')">
-                                <div class="section-header">
-                                    <span class="section-dot slot-3-4"></span>
-                                    <span class="section-title">第3-4节无课 ({{ filterClassrooms(building.slot_3_4).length }} 间)</span>
-                                </div>
-                                <div class="classroom-list" v-if="filterClassrooms(building.slot_3_4).length > 0">
-                                    <span
-                                        class="classroom-tag"
-                                        v-for="room in filterClassrooms(building.slot_3_4)"
-                                        :key="room"
-                                        v-html="highlightKeyword(room)"
-                                    ></span>
-                                </div>
-                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
-                            </div>
-
-                            <!-- 第5-6节 -->
-                            <div class="classroom-section" v-if="isSlotVisible('slot_5_6')">
-                                <div class="section-header">
-                                    <span class="section-dot slot-5-6"></span>
-                                    <span class="section-title">第5-6节无课 ({{ filterClassrooms(building.slot_5_6).length }} 间)</span>
-                                </div>
-                                <div class="classroom-list" v-if="filterClassrooms(building.slot_5_6).length > 0">
-                                    <span
-                                        class="classroom-tag"
-                                        v-for="room in filterClassrooms(building.slot_5_6)"
-                                        :key="room"
-                                        v-html="highlightKeyword(room)"
-                                    ></span>
-                                </div>
-                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
-                            </div>
-
-                            <!-- 第7-8节 -->
-                            <div class="classroom-section" v-if="isSlotVisible('slot_7_8')">
-                                <div class="section-header">
-                                    <span class="section-dot slot-7-8"></span>
-                                    <span class="section-title">第7-8节无课 ({{ filterClassrooms(building.slot_7_8).length }} 间)</span>
-                                </div>
-                                <div class="classroom-list" v-if="filterClassrooms(building.slot_7_8).length > 0">
-                                    <span
-                                        class="classroom-tag"
-                                        v-for="room in filterClassrooms(building.slot_7_8)"
-                                        :key="room"
-                                        v-html="highlightKeyword(room)"
-                                    ></span>
-                                </div>
-                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
-                            </div>
-
-                            <!-- 第9-11节 -->
-                            <div class="classroom-section" v-if="isSlotVisible('slot_9_11')">
-                                <div class="section-header">
-                                    <span class="section-dot slot-9-11"></span>
-                                    <span class="section-title">第9-11节无课 ({{ filterClassrooms(building.slot_9_11).length }} 间)</span>
-                                </div>
-                                <div class="classroom-list" v-if="filterClassrooms(building.slot_9_11).length > 0">
-                                    <span
-                                        class="classroom-tag"
-                                        v-for="room in filterClassrooms(building.slot_9_11)"
-                                        :key="room"
-                                        v-html="highlightKeyword(room)"
-                                    ></span>
-                                </div>
-                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
-                            </div>
-                        </div>
-                    </el-collapse-transition>
                 </div>
 
-                <!-- 无结果 -->
-                <el-empty
-                    v-if="filteredBuildings.length === 0"
-                    description="没有找到匹配的教室"
-                />
+                <!-- 内容布局 -->
+                <div class="content-layout">
+                    <!-- 侧边栏 - 教学楼列表 -->
+                    <aside class="sidebar">
+                        <div class="sidebar-title">教学楼</div>
+                        <div class="building-list">
+                            <div
+                                v-for="(building, index) in data.buildings"
+                                :key="building.name"
+                                class="building-item"
+                                :class="{ active: activeBuilding === index }"
+                                @click="activeBuilding = index"
+                            >
+                                {{ building.name }}
+                            </div>
+                        </div>
+                    </aside>
+
+                    <!-- 主内容 - 时间段列表 -->
+                    <div class="main-panel">
+                        <div
+                            v-for="slot in timeSlots"
+                            :key="slot.key"
+                            class="time-slot-card"
+                        >
+                            <div
+                                class="time-slot-header"
+                                @click="toggleSlot(slot.key)"
+                            >
+                                <div class="time-slot-left">
+                                    <div class="time-slot-icon">
+                                        <el-icon><timer /></el-icon>
+                                    </div>
+                                    <div class="time-slot-info">
+                                        <div class="time-slot-title">{{ slot.name }}</div>
+                                        <div class="time-slot-time">{{ slot.time }}</div>
+                                    </div>
+                                </div>
+                                <div class="time-slot-right">
+                                    <span
+                                        class="time-slot-count"
+                                        :class="{ 'time-slot-count--empty': getClassrooms(slot.key).length === 0 }"
+                                    >
+                                        {{ getClassrooms(slot.key).length }} 间空教室
+                                    </span>
+                                    <el-icon
+                                        class="time-slot-arrow"
+                                        :class="{ expanded: expandedSlots.includes(slot.key) }"
+                                    >
+                                        <arrow-down />
+                                    </el-icon>
+                                </div>
+                            </div>
+                            <transition name="collapse">
+                                <div
+                                    v-if="expandedSlots.includes(slot.key)"
+                                    class="time-slot-body"
+                                >
+                                    <div
+                                        v-if="getClassrooms(slot.key).length > 0"
+                                        class="classroom-grid"
+                                    >
+                                        <span
+                                            v-for="room in getClassrooms(slot.key)"
+                                            :key="room"
+                                            class="classroom-tag"
+                                        >
+                                            {{ formatRoomName(room) }}
+                                        </span>
+                                    </div>
+                                    <div v-else class="empty-tip">
+                                        该时段暂无空教室
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
+                </div>
             </template>
+        </main>
 
-            <!-- 页脚 -->
-            <div class="footer">
-                <p>数据来源：曲阜师范大学教务系统</p>
+        <!-- 底部信息 -->
+        <footer class="footer" v-if="data">
+            <div>数据来源：曲阜师范大学教务系统</div>
+            <div class="footer-links">
+                <a href="/mobile">移动端版本</a>
             </div>
-        </div>
-
-        <!-- 切换到移动端 -->
-        <el-button
-            class="switch-device"
-            type="primary"
-            round
-            @click="goToMobile"
-        >
-            切换到移动端
-        </el-button>
+        </footer>
     </div>
 
     <!-- Vue 3 -->
@@ -486,30 +693,30 @@
     <script src="https://unpkg.com/@element-plus/icons-vue"></script>
 
     <script>
-        // 检查依赖是否加载
-        if (typeof Vue === 'undefined') {
-            document.body.innerHTML = '<h1 style="color:red;padding:20px;">Vue 加载失败，请刷新页面</h1>';
-            throw new Error('Vue not loaded');
-        }
-        if (typeof ElementPlus === 'undefined') {
-            document.body.innerHTML = '<h1 style="color:red;padding:20px;">Element Plus 加载失败，请刷新页面</h1>';
-            throw new Error('ElementPlus not loaded');
-        }
-
-        const { createApp, ref, computed, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted, watch } = Vue;
 
         const app = createApp({
             setup() {
-                const loading = ref(true);
+                const loading = ref(false);
+                const refreshing = ref(false);
                 const error = ref(null);
                 const data = ref(null);
-                const searchKeyword = ref('');
-                const selectedSlots = ref([]);
-                const collapsedBuildings = ref([]);
+                const activeBuilding = ref(0);
+                const expandedSlots = ref(['slot_1_2']);
 
-                const TIME_SLOTS = ['slot_1_2', 'slot_3_4', 'slot_5_6', 'slot_7_8', 'slot_9_11'];
+                const timeSlots = [
+                    { key: 'slot_1_2', name: '第1-2节', time: '08:00 - 09:40' },
+                    { key: 'slot_3_4', name: '第3-4节', time: '10:00 - 11:40' },
+                    { key: 'slot_5_6', name: '第5-6节', time: '14:00 - 15:40' },
+                    { key: 'slot_7_8', name: '第7-8节', time: '16:00 - 17:40' },
+                    { key: 'slot_9_11', name: '第9-11节', time: '19:00 - 21:30' }
+                ];
 
-                // 获取数据
+                const currentBuilding = computed(() => {
+                    if (!data.value || !data.value.buildings) return null;
+                    return data.value.buildings[activeBuilding.value];
+                });
+
                 const fetchData = async () => {
                     loading.value = true;
                     error.value = null;
@@ -517,28 +724,21 @@
                     try {
                         const response = await fetch('/api/classrooms');
                         const result = await response.json();
-                        console.log('API返回数据:', result);
 
                         if (result.code === 0) {
                             data.value = result.data;
-                            console.log('data.value:', data.value);
-                            console.log('buildings:', data.value?.buildings);
                         } else {
-                            error.value = result.message;
+                            error.value = result.message || '获取数据失败';
                         }
                     } catch (e) {
-                        console.error('获取数据失败:', e);
-                        error.value = '网络错误，请稍后重试';
+                        error.value = '网络错误，请检查网络连接';
                     } finally {
                         loading.value = false;
                     }
                 };
 
-                // 刷新数据
                 const refreshData = async () => {
-                    loading.value = true;
-                    error.value = null;
-
+                    refreshing.value = true;
                     try {
                         const response = await fetch('/api/refresh');
                         const result = await response.json();
@@ -547,94 +747,41 @@
                             data.value = result.data;
                             ElementPlus.ElMessage.success('数据刷新成功');
                         } else {
-                            error.value = result.message;
-                            ElementPlus.ElMessage.error(result.message);
+                            ElementPlus.ElMessage.error(result.message || '刷新失败');
                         }
                     } catch (e) {
-                        error.value = '网络错误，请稍后重试';
                         ElementPlus.ElMessage.error('网络错误');
                     } finally {
-                        loading.value = false;
+                        refreshing.value = false;
                     }
                 };
 
-                // 切换教学楼折叠状态
-                const toggleBuilding = (name) => {
-                    const idx = collapsedBuildings.value.indexOf(name);
-                    if (idx === -1) {
-                        collapsedBuildings.value.push(name);
+                const handleRefresh = () => {
+                    if (refreshing.value) return;
+                    refreshData();
+                };
+
+                const getClassrooms = (slotKey) => {
+                    if (!currentBuilding.value) return [];
+                    return currentBuilding.value[slotKey] || [];
+                };
+
+                const formatRoomName = (room) => {
+                    if (!currentBuilding.value) return room;
+                    const buildingName = currentBuilding.value.name;
+                    if (room.startsWith(buildingName)) {
+                        return room.substring(buildingName.length);
+                    }
+                    return room;
+                };
+
+                const toggleSlot = (slotKey) => {
+                    const index = expandedSlots.value.indexOf(slotKey);
+                    if (index > -1) {
+                        expandedSlots.value.splice(index, 1);
                     } else {
-                        collapsedBuildings.value.splice(idx, 1);
+                        expandedSlots.value.push(slotKey);
                     }
-                };
-
-                // 判断时间段是否可见
-                const isSlotVisible = (slot) => {
-                    return selectedSlots.value.length === 0 || selectedSlots.value.includes(slot);
-                };
-
-                // 过滤教室
-                const filterClassrooms = (rooms) => {
-                    if (!rooms) return [];
-                    if (!searchKeyword.value.trim()) return rooms;
-                    const keyword = searchKeyword.value.trim().toLowerCase();
-                    return rooms.filter(room => room.toLowerCase().includes(keyword));
-                };
-
-                // 获取可见教室数量
-                const getVisibleCount = (building, slot) => {
-                    return filterClassrooms(building[slot]).length;
-                };
-
-                // 高亮关键词
-                const highlightKeyword = (text) => {
-                    if (!searchKeyword.value.trim()) return text;
-                    const keyword = searchKeyword.value.trim();
-                    const regex = new RegExp(`(${keyword})`, 'gi');
-                    return text.replace(regex, '<span class="highlight">$1</span>');
-                };
-
-                // 过滤后的教学楼列表
-                const filteredBuildings = computed(() => {
-                    try {
-                        if (!data.value) {
-                            console.log('filteredBuildings: data.value为空');
-                            return [];
-                        }
-                        // 使用更宽松的检查，避免 Array.isArray 对 Proxy 数组的兼容性问题
-                        const buildings = data.value.buildings;
-                        if (!buildings || typeof buildings.length !== 'number') {
-                            console.log('filteredBuildings: buildings无效', buildings);
-                            return [];
-                        }
-                        console.log('filteredBuildings: buildings长度 =', buildings.length);
-
-                        // 如果没有搜索关键词，直接返回所有教学楼
-                        if (!searchKeyword.value.trim()) {
-                            console.log('无搜索关键词，返回所有教学楼，数量:', buildings.length);
-                            return [...buildings]; // 返回数组副本确保响应式
-                        }
-
-                        // 有搜索关键词时才进行过滤
-                        const result = buildings.filter(building => {
-                            for (const slot of TIME_SLOTS) {
-                                if (isSlotVisible(slot) && filterClassrooms(building[slot]).length > 0) {
-                                    return true;
-                                }
-                            }
-                            return false;
-                        });
-                        console.log('filteredBuildings结果:', result);
-                        return result;
-                    } catch (e) {
-                        console.error('filteredBuildings计算出错:', e);
-                        return [];
-                    }
-                });
-
-                // 跳转到移动端
-                const goToMobile = () => {
-                    window.location.href = '/mobile';
                 };
 
                 onMounted(() => {
@@ -643,24 +790,18 @@
 
                 return {
                     loading,
+                    refreshing,
                     error,
                     data,
-                    searchKeyword,
-                    selectedSlots,
-                    collapsedBuildings,
-                    refreshData,
-                    toggleBuilding,
-                    isSlotVisible,
-                    filterClassrooms,
-                    getVisibleCount,
-                    highlightKeyword,
-                    filteredBuildings,
-                    goToMobile,
-                    // Icons
-                    Search: ElementPlusIconsVue.Search,
-                    Refresh: ElementPlusIconsVue.Refresh,
-                    Loading: ElementPlusIconsVue.Loading,
-                    ArrowDown: ElementPlusIconsVue.ArrowDown,
+                    activeBuilding,
+                    expandedSlots,
+                    timeSlots,
+                    currentBuilding,
+                    fetchData,
+                    handleRefresh,
+                    getClassrooms,
+                    formatRoomName,
+                    toggleSlot
                 };
             }
         });
