@@ -1,3 +1,10 @@
+# 自定义
+
+.spec-workflow
+.claude
+output
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

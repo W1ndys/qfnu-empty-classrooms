@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空教室查询</title>
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        :root {
+            --primary-color: #885021;
+            --primary-light: #C4956A;
+            --cream-color: #F5E6D3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* 头部 */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(136, 80, 33, 0.2);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .header-info {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .info-tag {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            backdrop-filter: blur(4px);
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            background: white;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .toolbar .el-input {
+            max-width: 300px;
+        }
+
+        /* 时间段筛选 */
+        .filter-section {
+            background: white;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+
+        .filter-title {
+            font-size: 14px;
+            color: #909399;
+            margin-bottom: 12px;
+        }
+
+        /* 教学楼卡片 */
+        .building-card {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .building-card:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .building-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 16px 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .building-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .building-stats {
+            display: flex;
+            gap: 16px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.85;
+        }
+
+        .building-body {
+            padding: 24px;
+        }
+
+        .classroom-section {
+            margin-bottom: 20px;
+        }
+
+        .classroom-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .section-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .section-dot.slot-1-2 { background: #67C23A; }
+        .section-dot.slot-3-4 { background: #E6A23C; }
+        .section-dot.slot-5-6 { background: #409EFF; }
+        .section-dot.slot-7-8 { background: #9B59B6; }
+        .section-dot.slot-9-11 { background: #F56C6C; }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #303133;
+        }
+
+        .classroom-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .classroom-tag {
+            background: #f5f7fa;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #606266;
+            transition: all 0.2s ease;
+        }
+
+        .classroom-tag:hover {
+            background: var(--cream-color);
+            color: var(--primary-color);
+        }
+
+        .highlight {
+            background: var(--cream-color);
+            color: var(--primary-color);
+            padding: 0 2px;
+            border-radius: 2px;
+            font-weight: 500;
+        }
+
+        /* 加载和空状态 */
+        .loading-container, .empty-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            color: #909399;
+        }
+
+        .loading-container .el-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* 页脚 */
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #909399;
+            font-size: 12px;
+        }
+
+        /* 切换到移动端链接 */
+        .switch-device {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- 头部信息 -->
+            <div class="header">
+                <h1>空教室查询</h1>
+                <div class="header-info" v-if="data">
+                    <span class="info-tag">{{ data.date }} 星期{{ data.weekday_name }}</span>
+                    <span class="info-tag">{{ data.semester }}</span>
+                    <span class="info-tag">第{{ data.week }}周</span>
+                </div>
+            </div>
+
+            <!-- 工具栏 -->
+            <div class="toolbar">
+                <el-input
+                    v-model="searchKeyword"
+                    placeholder="搜索教室..."
+                    clearable
+                    :prefix-icon="Search"
+                    size="large"
+                ></el-input>
+
+                <el-button
+                    type="primary"
+                    :loading="loading"
+                    @click="refreshData"
+                    :icon="Refresh"
+                    size="large"
+                >
+                    刷新数据
+                </el-button>
+
+                <el-tag v-if="data" type="info">
+                    更新时间: {{ data.query_time }}
+                </el-tag>
+            </div>
+
+            <!-- 时间段筛选 -->
+            <div class="filter-section">
+                <div class="filter-title">选择时间段（可多选）</div>
+                <el-checkbox-group v-model="selectedSlots">
+                    <el-checkbox-button label="slot_1_2">第1-2节</el-checkbox-button>
+                    <el-checkbox-button label="slot_3_4">第3-4节</el-checkbox-button>
+                    <el-checkbox-button label="slot_5_6">第5-6节</el-checkbox-button>
+                    <el-checkbox-button label="slot_7_8">第7-8节</el-checkbox-button>
+                    <el-checkbox-button label="slot_9_11">第9-11节</el-checkbox-button>
+                </el-checkbox-group>
+                <el-button
+                    v-if="selectedSlots.length > 0"
+                    link
+                    type="primary"
+                    @click="selectedSlots = []"
+                    style="margin-left: 12px;"
+                >
+                    清除筛选
+                </el-button>
+            </div>
+
+            <!-- 加载状态 -->
+            <div class="loading-container" v-if="loading">
+                <el-icon><Loading /></el-icon>
+                <p>正在查询空教室...</p>
+            </div>
+
+            <!-- 错误状态 -->
+            <el-alert
+                v-if="error"
+                :title="error"
+                type="error"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 24px;"
+            />
+
+            <!-- 调试信息 -->
+            <div v-if="data" style="background: #ffe; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
+                <p>调试: 共 {{ data.buildings?.length || 0 }} 个教学楼, filteredBuildings: {{ filteredBuildings.length }} 个</p>
+            </div>
+
+            <!-- 教学楼列表 -->
+            <template v-if="!loading && data">
+                <div
+                    v-for="building in filteredBuildings"
+                    :key="building.name"
+                    class="building-card"
+                >
+                    <div
+                        class="building-header"
+                        @click="toggleBuilding(building.name)"
+                    >
+                        <span class="building-name">{{ building.name }}</span>
+                        <div class="building-stats">
+                            <div class="stat-item" v-if="isSlotVisible('slot_1_2')">
+                                <div class="stat-value">{{ getVisibleCount(building, 'slot_1_2') }}</div>
+                                <div class="stat-label">1-2节</div>
+                            </div>
+                            <div class="stat-item" v-if="isSlotVisible('slot_3_4')">
+                                <div class="stat-value">{{ getVisibleCount(building, 'slot_3_4') }}</div>
+                                <div class="stat-label">3-4节</div>
+                            </div>
+                            <div class="stat-item" v-if="isSlotVisible('slot_5_6')">
+                                <div class="stat-value">{{ getVisibleCount(building, 'slot_5_6') }}</div>
+                                <div class="stat-label">5-6节</div>
+                            </div>
+                            <div class="stat-item" v-if="isSlotVisible('slot_7_8')">
+                                <div class="stat-value">{{ getVisibleCount(building, 'slot_7_8') }}</div>
+                                <div class="stat-label">7-8节</div>
+                            </div>
+                            <div class="stat-item" v-if="isSlotVisible('slot_9_11')">
+                                <div class="stat-value">{{ getVisibleCount(building, 'slot_9_11') }}</div>
+                                <div class="stat-label">9-11节</div>
+                            </div>
+                            <el-icon :style="{ transform: collapsedBuildings.includes(building.name) ? 'rotate(-90deg)' : 'rotate(0)' }">
+                                <ArrowDown />
+                            </el-icon>
+                        </div>
+                    </div>
+
+                    <el-collapse-transition>
+                        <div class="building-body" v-show="!collapsedBuildings.includes(building.name)">
+                            <!-- 第1-2节 -->
+                            <div class="classroom-section" v-if="isSlotVisible('slot_1_2')">
+                                <div class="section-header">
+                                    <span class="section-dot slot-1-2"></span>
+                                    <span class="section-title">第1-2节无课 ({{ filterClassrooms(building.slot_1_2).length }} 间)</span>
+                                </div>
+                                <div class="classroom-list" v-if="filterClassrooms(building.slot_1_2).length > 0">
+                                    <span
+                                        class="classroom-tag"
+                                        v-for="room in filterClassrooms(building.slot_1_2)"
+                                        :key="room"
+                                        v-html="highlightKeyword(room)"
+                                    ></span>
+                                </div>
+                                <el-empty v-else description="暂无" :image-size="40" />
+                            </div>
+
+                            <!-- 第3-4节 -->
+                            <div class="classroom-section" v-if="isSlotVisible('slot_3_4')">
+                                <div class="section-header">
+                                    <span class="section-dot slot-3-4"></span>
+                                    <span class="section-title">第3-4节无课 ({{ filterClassrooms(building.slot_3_4).length }} 间)</span>
+                                </div>
+                                <div class="classroom-list" v-if="filterClassrooms(building.slot_3_4).length > 0">
+                                    <span
+                                        class="classroom-tag"
+                                        v-for="room in filterClassrooms(building.slot_3_4)"
+                                        :key="room"
+                                        v-html="highlightKeyword(room)"
+                                    ></span>
+                                </div>
+                                <el-empty v-else description="暂无" :image-size="40" />
+                            </div>
+
+                            <!-- 第5-6节 -->
+                            <div class="classroom-section" v-if="isSlotVisible('slot_5_6')">
+                                <div class="section-header">
+                                    <span class="section-dot slot-5-6"></span>
+                                    <span class="section-title">第5-6节无课 ({{ filterClassrooms(building.slot_5_6).length }} 间)</span>
+                                </div>
+                                <div class="classroom-list" v-if="filterClassrooms(building.slot_5_6).length > 0">
+                                    <span
+                                        class="classroom-tag"
+                                        v-for="room in filterClassrooms(building.slot_5_6)"
+                                        :key="room"
+                                        v-html="highlightKeyword(room)"
+                                    ></span>
+                                </div>
+                                <el-empty v-else description="暂无" :image-size="40" />
+                            </div>
+
+                            <!-- 第7-8节 -->
+                            <div class="classroom-section" v-if="isSlotVisible('slot_7_8')">
+                                <div class="section-header">
+                                    <span class="section-dot slot-7-8"></span>
+                                    <span class="section-title">第7-8节无课 ({{ filterClassrooms(building.slot_7_8).length }} 间)</span>
+                                </div>
+                                <div class="classroom-list" v-if="filterClassrooms(building.slot_7_8).length > 0">
+                                    <span
+                                        class="classroom-tag"
+                                        v-for="room in filterClassrooms(building.slot_7_8)"
+                                        :key="room"
+                                        v-html="highlightKeyword(room)"
+                                    ></span>
+                                </div>
+                                <el-empty v-else description="暂无" :image-size="40" />
+                            </div>
+
+                            <!-- 第9-11节 -->
+                            <div class="classroom-section" v-if="isSlotVisible('slot_9_11')">
+                                <div class="section-header">
+                                    <span class="section-dot slot-9-11"></span>
+                                    <span class="section-title">第9-11节无课 ({{ filterClassrooms(building.slot_9_11).length }} 间)</span>
+                                </div>
+                                <div class="classroom-list" v-if="filterClassrooms(building.slot_9_11).length > 0">
+                                    <span
+                                        class="classroom-tag"
+                                        v-for="room in filterClassrooms(building.slot_9_11)"
+                                        :key="room"
+                                        v-html="highlightKeyword(room)"
+                                    ></span>
+                                </div>
+                                <el-empty v-else description="暂无" :image-size="40" />
+                            </div>
+                        </div>
+                    </el-collapse-transition>
+                </div>
+
+                <!-- 无结果 -->
+                <el-empty
+                    v-if="filteredBuildings.length === 0"
+                    description="没有找到匹配的教室"
+                />
+            </template>
+
+            <!-- 页脚 -->
+            <div class="footer">
+                <p>数据来源：曲阜师范大学教务系统</p>
+            </div>
+        </div>
+
+        <!-- 切换到移动端 -->
+        <el-button
+            class="switch-device"
+            type="primary"
+            round
+            @click="goToMobile"
+        >
+            切换到移动端
+        </el-button>
+    </div>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Element Plus -->
+    <script src="https://unpkg.com/element-plus"></script>
+    <!-- Element Plus Icons -->
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+
+    <script>
+        // 检查依赖是否加载
+        if (typeof Vue === 'undefined') {
+            document.body.innerHTML = '<h1 style="color:red;padding:20px;">Vue 加载失败，请刷新页面</h1>';
+            throw new Error('Vue not loaded');
+        }
+        if (typeof ElementPlus === 'undefined') {
+            document.body.innerHTML = '<h1 style="color:red;padding:20px;">Element Plus 加载失败，请刷新页面</h1>';
+            throw new Error('ElementPlus not loaded');
+        }
+
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const loading = ref(true);
+                const error = ref(null);
+                const data = ref(null);
+                const searchKeyword = ref('');
+                const selectedSlots = ref([]);
+                const collapsedBuildings = ref([]);
+
+                const TIME_SLOTS = ['slot_1_2', 'slot_3_4', 'slot_5_6', 'slot_7_8', 'slot_9_11'];
+
+                // 获取数据
+                const fetchData = async () => {
+                    loading.value = true;
+                    error.value = null;
+
+                    try {
+                        const response = await fetch('/api/classrooms');
+                        const result = await response.json();
+                        console.log('API返回数据:', result);
+
+                        if (result.code === 0) {
+                            data.value = result.data;
+                            console.log('data.value:', data.value);
+                            console.log('buildings:', data.value?.buildings);
+                        } else {
+                            error.value = result.message;
+                        }
+                    } catch (e) {
+                        console.error('获取数据失败:', e);
+                        error.value = '网络错误，请稍后重试';
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 刷新数据
+                const refreshData = async () => {
+                    loading.value = true;
+                    error.value = null;
+
+                    try {
+                        const response = await fetch('/api/refresh');
+                        const result = await response.json();
+
+                        if (result.code === 0) {
+                            data.value = result.data;
+                            ElementPlus.ElMessage.success('数据刷新成功');
+                        } else {
+                            error.value = result.message;
+                            ElementPlus.ElMessage.error(result.message);
+                        }
+                    } catch (e) {
+                        error.value = '网络错误，请稍后重试';
+                        ElementPlus.ElMessage.error('网络错误');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 切换教学楼折叠状态
+                const toggleBuilding = (name) => {
+                    const idx = collapsedBuildings.value.indexOf(name);
+                    if (idx === -1) {
+                        collapsedBuildings.value.push(name);
+                    } else {
+                        collapsedBuildings.value.splice(idx, 1);
+                    }
+                };
+
+                // 判断时间段是否可见
+                const isSlotVisible = (slot) => {
+                    return selectedSlots.value.length === 0 || selectedSlots.value.includes(slot);
+                };
+
+                // 过滤教室
+                const filterClassrooms = (rooms) => {
+                    if (!rooms) return [];
+                    if (!searchKeyword.value.trim()) return rooms;
+                    const keyword = searchKeyword.value.trim().toLowerCase();
+                    return rooms.filter(room => room.toLowerCase().includes(keyword));
+                };
+
+                // 获取可见教室数量
+                const getVisibleCount = (building, slot) => {
+                    return filterClassrooms(building[slot]).length;
+                };
+
+                // 高亮关键词
+                const highlightKeyword = (text) => {
+                    if (!searchKeyword.value.trim()) return text;
+                    const keyword = searchKeyword.value.trim();
+                    const regex = new RegExp(`(${keyword})`, 'gi');
+                    return text.replace(regex, '<span class="highlight">$1</span>');
+                };
+
+                // 过滤后的教学楼列表
+                const filteredBuildings = computed(() => {
+                    if (!data.value) {
+                        console.log('filteredBuildings: data.value为空');
+                        return [];
+                    }
+                    console.log('filteredBuildings: data.value.buildings =', data.value.buildings);
+
+                    // 如果没有搜索关键词，直接返回所有教学楼
+                    if (!searchKeyword.value.trim()) {
+                        console.log('无搜索关键词，返回所有教学楼');
+                        return data.value.buildings;
+                    }
+
+                    // 有搜索关键词时才进行过滤
+                    const result = data.value.buildings.filter(building => {
+                        for (const slot of TIME_SLOTS) {
+                            if (isSlotVisible(slot) && filterClassrooms(building[slot]).length > 0) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                    console.log('filteredBuildings结果:', result);
+                    return result;
+                });
+
+                // 跳转到移动端
+                const goToMobile = () => {
+                    window.location.href = '/mobile';
+                };
+
+                onMounted(() => {
+                    fetchData();
+                });
+
+                return {
+                    loading,
+                    error,
+                    data,
+                    searchKeyword,
+                    selectedSlots,
+                    collapsedBuildings,
+                    refreshData,
+                    toggleBuilding,
+                    isSlotVisible,
+                    filterClassrooms,
+                    getVisibleCount,
+                    highlightKeyword,
+                    filteredBuildings,
+                    goToMobile,
+                    // Icons
+                    Search: ElementPlusIconsVue.Search,
+                    Refresh: ElementPlusIconsVue.Refresh,
+                    Loading: ElementPlusIconsVue.Loading,
+                    ArrowDown: ElementPlusIconsVue.ArrowDown,
+                };
+            }
+        });
+
+        // 注册 Element Plus 图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component);
+        }
+
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>
