@@ -306,7 +306,7 @@
 
             <!-- 加载状态 -->
             <div class="loading-container" v-if="loading">
-                <el-icon><Loading /></el-icon>
+                <el-icon><Loading></Loading></el-icon>
                 <p>正在查询空教室...</p>
             </div>
 
@@ -321,8 +321,8 @@
             />
 
             <!-- 调试信息 -->
-            <div v-if="data" style="background: #ffe; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
-                <p>调试: 共 {{ data.buildings?.length || 0 }} 个教学楼, filteredBuildings: {{ filteredBuildings.length }} 个</p>
+            <div style="background: #ffe; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
+                <p>调试: loading={{ loading }}, data存在={{ !!data }}, buildings数量={{ data?.buildings?.length || 0 }}, filteredBuildings数量={{ filteredBuildings.length }}</p>
             </div>
 
             <!-- 教学楼列表 -->
@@ -359,7 +359,7 @@
                                 <div class="stat-label">9-11节</div>
                             </div>
                             <el-icon :style="{ transform: collapsedBuildings.includes(building.name) ? 'rotate(-90deg)' : 'rotate(0)' }">
-                                <ArrowDown />
+                                <ArrowDown></ArrowDown>
                             </el-icon>
                         </div>
                     </div>
@@ -380,7 +380,7 @@
                                         v-html="highlightKeyword(room)"
                                     ></span>
                                 </div>
-                                <el-empty v-else description="暂无" :image-size="40" />
+                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
                             </div>
 
                             <!-- 第3-4节 -->
@@ -397,7 +397,7 @@
                                         v-html="highlightKeyword(room)"
                                     ></span>
                                 </div>
-                                <el-empty v-else description="暂无" :image-size="40" />
+                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
                             </div>
 
                             <!-- 第5-6节 -->
@@ -414,7 +414,7 @@
                                         v-html="highlightKeyword(room)"
                                     ></span>
                                 </div>
-                                <el-empty v-else description="暂无" :image-size="40" />
+                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
                             </div>
 
                             <!-- 第7-8节 -->
@@ -431,7 +431,7 @@
                                         v-html="highlightKeyword(room)"
                                     ></span>
                                 </div>
-                                <el-empty v-else description="暂无" :image-size="40" />
+                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
                             </div>
 
                             <!-- 第9-11节 -->
@@ -448,7 +448,7 @@
                                         v-html="highlightKeyword(room)"
                                     ></span>
                                 </div>
-                                <el-empty v-else description="暂无" :image-size="40" />
+                                <el-empty v-else description="暂无" :image-size="40"></el-empty>
                             </div>
                         </div>
                     </el-collapse-transition>
@@ -596,29 +596,40 @@
 
                 // 过滤后的教学楼列表
                 const filteredBuildings = computed(() => {
-                    if (!data.value) {
-                        console.log('filteredBuildings: data.value为空');
+                    try {
+                        if (!data.value) {
+                            console.log('filteredBuildings: data.value为空');
+                            return [];
+                        }
+                        // 使用更宽松的检查，避免 Array.isArray 对 Proxy 数组的兼容性问题
+                        const buildings = data.value.buildings;
+                        if (!buildings || typeof buildings.length !== 'number') {
+                            console.log('filteredBuildings: buildings无效', buildings);
+                            return [];
+                        }
+                        console.log('filteredBuildings: buildings长度 =', buildings.length);
+
+                        // 如果没有搜索关键词，直接返回所有教学楼
+                        if (!searchKeyword.value.trim()) {
+                            console.log('无搜索关键词，返回所有教学楼，数量:', buildings.length);
+                            return [...buildings]; // 返回数组副本确保响应式
+                        }
+
+                        // 有搜索关键词时才进行过滤
+                        const result = buildings.filter(building => {
+                            for (const slot of TIME_SLOTS) {
+                                if (isSlotVisible(slot) && filterClassrooms(building[slot]).length > 0) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+                        console.log('filteredBuildings结果:', result);
+                        return result;
+                    } catch (e) {
+                        console.error('filteredBuildings计算出错:', e);
                         return [];
                     }
-                    console.log('filteredBuildings: data.value.buildings =', data.value.buildings);
-
-                    // 如果没有搜索关键词，直接返回所有教学楼
-                    if (!searchKeyword.value.trim()) {
-                        console.log('无搜索关键词，返回所有教学楼');
-                        return data.value.buildings;
-                    }
-
-                    // 有搜索关键词时才进行过滤
-                    const result = data.value.buildings.filter(building => {
-                        for (const slot of TIME_SLOTS) {
-                            if (isSlotVisible(slot) && filterClassrooms(building[slot]).length > 0) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
-                    console.log('filteredBuildings结果:', result);
-                    return result;
                 });
 
                 // 跳转到移动端
