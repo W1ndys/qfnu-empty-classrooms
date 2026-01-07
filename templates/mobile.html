@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>空教室查询</title>
     <!-- Vant CSS -->
-    <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vant@4/lib/index.css">
+    <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vant@4/lib/index.css" />
     <style>
         :root {
             /* 主色 - 曲奇棕 */
@@ -310,7 +310,7 @@
             <!-- 查询表单 -->
             <div class="query-card">
                 <div class="query-card__title">
-                    <van-icon name="search" />
+                    <van-icon name="search"></van-icon>
                     查询条件
                 </div>
 
@@ -322,7 +322,7 @@
                     left-icon="info-o"
                     :text="modeInfo.mode_description"
                     style="margin-bottom: 12px; border-radius: 8px;"
-                />
+                ></van-notice-bar>
 
                 <div class="form-item">
                     <span class="form-item__label">教学楼关键词</span>
@@ -330,7 +330,7 @@
                         v-model="queryForm.building"
                         placeholder="如：格物楼B10"
                         clearable
-                    />
+                    ></van-field>
                 </div>
 
                 <div class="form-item">
@@ -341,7 +341,7 @@
                         is-link
                         placeholder="选择开始节次"
                         @click="showStartPicker = true"
-                    />
+                    ></van-field>
                 </div>
 
                 <div class="form-item">
@@ -352,7 +352,7 @@
                         is-link
                         placeholder="选择结束节次"
                         @click="showEndPicker = true"
-                    />
+                    ></van-field>
                 </div>
 
                 <div class="form-item">
@@ -363,19 +363,19 @@
                             size="small"
                             round
                             @click="queryForm.dayOffset--"
-                        />
+                        ></van-button>
                         <van-field
                             v-model.number="queryForm.dayOffset"
                             type="number"
                             style="flex: 1; text-align: center;"
                             input-align="center"
-                        />
+                        ></van-field>
                         <van-button
                             icon="plus"
                             size="small"
                             round
                             @click="queryForm.dayOffset++"
-                        />
+                        ></van-button>
                     </div>
                     <div style="text-align: center; color: var(--text-secondary); font-size: 12px;">
                         {{ getDayOffsetLabel(queryForm.dayOffset) }}
@@ -394,13 +394,13 @@
 
             <!-- 加载状态 -->
             <div v-if="loading" class="loading-container">
-                <van-loading type="spinner" color="#885021" size="36" />
+                <van-loading type="spinner" color="#885021" size="36"></van-loading>
                 <div class="loading-text">正在查询空教室...</div>
             </div>
 
             <!-- 错误状态 -->
             <div v-else-if="error" class="error-container">
-                <van-icon name="warning-o" class="error-icon" />
+                <van-icon name="warning-o" class="error-icon"></van-icon>
                 <div class="error-text">{{ error }}</div>
                 <van-button type="primary" size="small" @click="handleQuery">重新查询</van-button>
             </div>
@@ -416,11 +416,11 @@
 
                 <div class="result-card__info">
                     <span class="result-card__info-item">
-                        <van-icon name="calendar-o" />
+                        <van-icon name="calendar-o"></van-icon>
                         {{ result.semester }} 第{{ result.week }}周
                     </span>
                     <span v-if="result.building_keyword" class="result-card__info-item">
-                        <van-icon name="location-o" />
+                        <van-icon name="location-o"></van-icon>
                         {{ result.building_keyword }}
                     </span>
                 </div>
@@ -448,7 +448,7 @@
 
             <!-- 底部信息 -->
             <div class="footer-info" v-if="result">
-                数据来源：手动查询系统，AI辅助整理<br>
+                数据来源：手动查询系统，AI辅助整理<br />
                 查询时间：{{ result.query_time }}
             </div>
         </div>
@@ -459,7 +459,7 @@
                 :columns="startSectionOptions"
                 @confirm="onStartConfirm"
                 @cancel="showStartPicker = false"
-            />
+            ></van-picker>
         </van-popup>
 
         <van-popup v-model:show="showEndPicker" position="bottom" round>
@@ -467,7 +467,7 @@
                 :columns="endSectionOptions"
                 @confirm="onEndConfirm"
                 @cancel="showEndPicker = false"
-            />
+            ></van-picker>
         </van-popup>
     </div>
 
