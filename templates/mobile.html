@@ -303,14 +303,6 @@
             class="nav-bar"
             :border="false"
         >
-            <template #right>
-                <van-icon
-                    name="replay"
-                    size="20"
-                    :color="initializing ? '#C7C7CC' : '#885021'"
-                    @click="handleInitialize"
-                />
-            </template>
         </van-nav-bar>
 
         <!-- 页面内容 -->
@@ -506,7 +498,6 @@
         const app = createApp({
             setup() {
                 const loading = ref(false);
-                const initializing = ref(false);
                 const error = ref(null);
                 const result = ref(null);
 
@@ -620,29 +611,8 @@
                     }
                 };
 
-                const handleInitialize = async () => {
-                    if (initializing.value) return;
-                    initializing.value = true;
-
-                    try {
-                        const response = await fetch('/api/refresh');
-                        const data = await response.json();
-
-                        if (data.code === 0) {
-                            vant.showToast({ message: '初始化成功', icon: 'success' });
-                        } else {
-                            vant.showToast({ message: data.message || '初始化失败', icon: 'fail' });
-                        }
-                    } catch (e) {
-                        vant.showToast({ message: '网络错误', icon: 'fail' });
-                    } finally {
-                        initializing.value = false;
-                    }
-                };
-
                 return {
                     loading,
-                    initializing,
                     error,
                     result,
                     queryForm,
@@ -658,8 +628,7 @@
                     onStartConfirm,
                     onEndConfirm,
                     onDayConfirm,
-                    handleQuery,
-                    handleInitialize
+                    handleQuery
                 };
             }
         });

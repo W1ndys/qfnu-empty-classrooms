@@ -395,15 +395,6 @@
                     <span class="logo-text">空教室查询</span>
                 </div>
                 <div class="header-actions">
-                    <el-button
-                        type="primary"
-                        plain
-                        :loading="initializing"
-                        @click="handleInitialize"
-                    >
-                        <el-icon v-if="!initializing"><refresh /></el-icon>
-                        {{ initializing ? '初始化中...' : '重新初始化' }}
-                    </el-button>
                 </div>
             </div>
         </header>
@@ -604,7 +595,6 @@
         const app = createApp({
             setup() {
                 const loading = ref(false);
-                const initializing = ref(false);
                 const error = ref(null);
                 const result = ref(null);
 
@@ -645,33 +635,12 @@
                     }
                 };
 
-                const handleInitialize = async () => {
-                    initializing.value = true;
-
-                    try {
-                        const response = await fetch('/api/refresh');
-                        const data = await response.json();
-
-                        if (data.code === 0) {
-                            ElementPlus.ElMessage.success('初始化成功');
-                        } else {
-                            ElementPlus.ElMessage.error(data.message || '初始化失败');
-                        }
-                    } catch (e) {
-                        ElementPlus.ElMessage.error('网络错误');
-                    } finally {
-                        initializing.value = false;
-                    }
-                };
-
                 return {
                     loading,
-                    initializing,
                     error,
                     result,
                     queryForm,
-                    handleQuery,
-                    handleInitialize
+                    handleQuery
                 };
             }
         });

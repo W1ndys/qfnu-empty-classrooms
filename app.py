@@ -8,11 +8,12 @@
 2. PC 端使用 Element Plus 组件库
 3. 移动端使用 Vant 组件库
 4. 提供 API 接口查询空教室数据
-5. 启动时预加载数据，使用缓存避免频繁请求教务系统
+5. 启动时从缓存恢复数据，定时刷新教室列表
 """
 
 from logger import setup_logger
 import threading
+import time
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from user_agents import parse
@@ -33,7 +34,7 @@ setup_logger()
 
 # 全局服务管理
 class ServiceManager:
-    """服务管理器 - 管理查询服务的初始化状态"""
+    """服务管理器 - 管理查询服务的初始化状态和定时刷新"""
 
     def __init__(self):
         self.initialized = False
@@ -41,6 +42,8 @@ class ServiceManager:
         self.error = None
         self.lock = threading.Lock()
         self.query_service = EmptyClassroomQueryService()
+        self._refresh_thread: Optional[threading.Thread] = None
+        self._stop_refresh = threading.Event()
 
     def initialize(self, force=False):
         """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）"""
@@ -52,7 +55,7 @@ class ServiceManager:
                 if force:
                     self.query_service = EmptyClassroomQueryService()
 
-                success, result = self.query_service.initialize()
+                success, result = self.query_service.initialize(force=force)
 
                 if success:
                     self.initialized = True
@@ -74,6 +77,47 @@ class ServiceManager:
                 logger.exception(f"初始化异常: {e}")
                 return False, str(e)
 
+    def _refresh_loop(self):
+        """定时刷新循环"""
+        logger.info(f"定时刷新线程已启动，刷新间隔: {Config.REFRESH_INTERVAL}秒")
+
+        while not self._stop_refresh.is_set():
+            # 等待刷新间隔时间
+            if self._stop_refresh.wait(timeout=Config.REFRESH_INTERVAL):
+                # 如果收到停止信号，退出循环
+                break
+
+            # 执行刷新
+            try:
+                logger.info("定时刷新：开始刷新教室列表...")
+                with self.lock:
+                    success, result = self.query_service.refresh()
+                    if success:
+                        self.last_init = datetime.now()
+                        logger.info(f"定时刷新成功: {result}")
+                    else:
+                        logger.warning(f"定时刷新失败: {result}")
+            except Exception as e:
+                logger.exception(f"定时刷新异常: {e}")
+
+        logger.info("定时刷新线程已停止")
+
+    def start_refresh_thread(self):
+        """启动定时刷新线程"""
+        if self._refresh_thread is not None and self._refresh_thread.is_alive():
+            logger.warning("定时刷新线程已在运行")
+            return
+
+        self._stop_refresh.clear()
+        self._refresh_thread = threading.Thread(target=self._refresh_loop, daemon=True)
+        self._refresh_thread.start()
+
+    def stop_refresh_thread(self):
+        """停止定时刷新线程"""
+        self._stop_refresh.set()
+        if self._refresh_thread is not None:
+            self._refresh_thread.join(timeout=5)
+
     def get_status(self):
         """获取服务状态"""
         with self.lock:
@@ -88,6 +132,10 @@ class ServiceManager:
                 "error": self.error,
                 "service_info": service_info,
             }
+
+
+# 需要导入 Optional
+from typing import Optional
 
 
 # 全局服务实例
@@ -194,26 +242,6 @@ def api_info():
         )
 
 
-@app.route("/api/refresh")
-def api_refresh():
-    """API: 强制刷新服务（重新登录并获取教室列表）"""
-    try:
-        success, result = service_manager.initialize(force=True)
-
-        if success:
-            return jsonify(
-                {"code": 0, "message": "初始化成功", "data": {"message": result}}
-            )
-        else:
-            return jsonify({"code": 1, "message": result, "data": None}), 500
-
-    except Exception as e:
-        return (
-            jsonify({"code": 2, "message": f"服务器错误: {str(e)}", "data": None}),
-            500,
-        )
-
-
 @app.route("/api/health")
 def api_health():
     """API: 健康检查"""
@@ -242,20 +270,28 @@ def main():
         return 1
 
     logger.info(f"账号: {Config.USERNAME[:4]}****")
+    logger.info(f"刷新间隔: {Config.REFRESH_INTERVAL}秒")
 
-    # 启动时初始化服务
+    # 启动时初始化服务（优先从缓存恢复）
     logger.info("正在初始化查询服务...")
     success, result = service_manager.initialize()
     if success:
-        logger.info("服务初始化成功")
+        logger.info(f"服务初始化成功: {result}")
     else:
         logger.warning(f"服务初始化失败: {result}")
-        logger.warning("服务将继续启动，可稍后通过 /api/refresh 重试")
+        logger.warning("服务将继续启动，等待定时刷新重试")
+
+    # 启动定时刷新线程
+    service_manager.start_refresh_thread()
 
     logger.info(f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")
     logger.info("=" * 50)
 
-    app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)
+    try:
+        app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)
+    finally:
+        # 停止定时刷新线程
+        service_manager.stop_refresh_thread()
 
     return 0
 

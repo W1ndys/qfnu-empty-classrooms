@@ -8,9 +8,11 @@
 
 import os
 import re
+import json
 import base64
 from datetime import datetime, timedelta
 from typing import Tuple, List, Dict, Optional
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -44,6 +46,11 @@ class Config:
     FLASK_PORT = int(os.environ.get("FLASK_PORT", "5000"))
     FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
+    # 缓存配置
+    CACHE_DIR = Path(os.environ.get("CACHE_DIR", os.path.dirname(os.path.abspath(__file__)))) / "cache"
+    CACHE_FILE = CACHE_DIR / "classroom_cache.json"
+    REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL", "600"))  # 默认10分钟
+
     @classmethod
     def validate(cls) -> Tuple[bool, str]:
         """验证配置是否完整"""
@@ -52,6 +59,11 @@ class Config:
         if not cls.PASSWORD:
             return False, "请设置环境变量 QFNU_PASSWORD"
         return True, "配置验证通过"
+
+    @classmethod
+    def ensure_cache_dir(cls) -> None:
+        """确保缓存目录存在"""
+        cls.CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class AuthService:
@@ -581,11 +593,12 @@ class DateService:
 class EmptyClassroomQueryService:
     """空教室查询主服务 - 整合所有服务
 
-    新逻辑说明：
-    1. 初始化时登录并获取学期信息和所有教室列表
-    2. 前端传入参数：教学楼名称、开始节次、结束节次、日期偏移
-    3. 后端计算目标日期的周次和星期几
-    4. 查询指定条件的有课教室，计算空教室
+    功能说明：
+    1. 支持从缓存恢复数据，快速启动
+    2. 定时刷新教室列表（默认每10分钟）
+    3. 前端传入参数：教学楼名称、开始节次、结束节次、日期偏移
+    4. 后端计算目标日期的周次和星期几
+    5. 查询指定条件的有课教室，计算空教室
     """
 
     def __init__(self):
@@ -593,9 +606,94 @@ class EmptyClassroomQueryService:
         self.semester: Optional[str] = None
         self.current_week: Optional[int] = None
         self.all_classrooms: List[str] = []  # 所有教室列表缓存
+        self.last_refresh: Optional[datetime] = None  # 上次刷新时间
 
-    def initialize(self) -> Tuple[bool, str]:
-        """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）"""
+    def _load_cache(self) -> bool:
+        """从缓存文件加载数据"""
+        try:
+            if not Config.CACHE_FILE.exists():
+                logger.info("缓存文件不存在")
+                return False
+
+            with open(Config.CACHE_FILE, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+
+            # 验证缓存数据
+            if not isinstance(cache_data, dict):
+                logger.warning("缓存数据格式错误")
+                return False
+
+            self.semester = cache_data.get("semester")
+            self.current_week = cache_data.get("current_week")
+            self.all_classrooms = cache_data.get("all_classrooms", [])
+            last_refresh_str = cache_data.get("last_refresh")
+
+            if last_refresh_str:
+                self.last_refresh = datetime.fromisoformat(last_refresh_str)
+
+            if self.semester and self.current_week and self.all_classrooms:
+                logger.info(
+                    f"从缓存恢复数据: 学期={self.semester}, 周次={self.current_week}, "
+                    f"教室数量={len(self.all_classrooms)}, 上次刷新={last_refresh_str}"
+                )
+                return True
+            else:
+                logger.warning("缓存数据不完整")
+                return False
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"缓存文件JSON解析失败: {e}")
+            return False
+        except Exception as e:
+            logger.warning(f"加载缓存失败: {e}")
+            return False
+
+    def _save_cache(self) -> bool:
+        """保存数据到缓存文件"""
+        try:
+            Config.ensure_cache_dir()
+
+            cache_data = {
+                "semester": self.semester,
+                "current_week": self.current_week,
+                "all_classrooms": self.all_classrooms,
+                "last_refresh": self.last_refresh.isoformat() if self.last_refresh else None,
+                "saved_at": datetime.now().isoformat(),
+            }
+
+            with open(Config.CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"缓存已保存: {Config.CACHE_FILE}")
+            return True
+
+        except Exception as e:
+            logger.error(f"保存缓存失败: {e}")
+            return False
+
+    def _needs_refresh(self) -> bool:
+        """检查是否需要刷新数据"""
+        if not self.last_refresh:
+            return True
+
+        elapsed = (datetime.now() - self.last_refresh).total_seconds()
+        return elapsed >= Config.REFRESH_INTERVAL
+
+    def initialize(self, force: bool = False) -> Tuple[bool, str]:
+        """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）
+
+        Args:
+            force: 是否强制刷新，忽略缓存
+        """
+        # 尝试从缓存恢复（非强制刷新时）
+        if not force and self._load_cache():
+            # 如果缓存有效且不需要刷新，直接使用缓存
+            if not self._needs_refresh():
+                logger.info("使用缓存数据，无需刷新")
+                return True, "从缓存恢复成功"
+            else:
+                logger.info("缓存已过期，需要刷新")
+
         # 验证配置
         valid, msg = Config.validate()
         if not valid:
@@ -605,7 +703,12 @@ class EmptyClassroomQueryService:
         auth_service = AuthService()
         login_success, login_result = auth_service.login(Config.USERNAME, Config.PASSWORD)
         if not login_success:
+            # 如果登录失败但有缓存，使用缓存数据
+            if self.all_classrooms:
+                logger.warning(f"登录失败但有缓存数据，继续使用缓存: {login_result}")
+                return True, "登录失败，使用缓存数据"
             return False, f"登录失败: {login_result}"
+
         # login_result 是 Session 类型（登录成功时）
         if not isinstance(login_result, requests.Session):
             return False, "登录返回类型错误"
@@ -615,32 +718,48 @@ class EmptyClassroomQueryService:
         semester_service = SemesterService(self.session)
         sem_success, sem_result = semester_service.fetch_semester_and_week()
         if not sem_success:
-            return False, f"获取学期信息失败: {sem_result}"
-
-        # sem_result 是 Dict 类型（成功时）
-        if not isinstance(sem_result, dict):
-            return False, "学期信息返回类型错误"
-        semester_value = sem_result.get("semester")
-        week_value = sem_result.get("week")
-        if not isinstance(semester_value, str) or not isinstance(week_value, int):
-            return False, "学期信息格式错误"
-        self.semester = semester_value
-        self.current_week = week_value
+            if self.semester and self.current_week:
+                logger.warning(f"获取学期信息失败但有缓存，继续使用: {sem_result}")
+            else:
+                return False, f"获取学期信息失败: {sem_result}"
+        else:
+            # sem_result 是 Dict 类型（成功时）
+            if not isinstance(sem_result, dict):
+                return False, "学期信息返回类型错误"
+            semester_value = sem_result.get("semester")
+            week_value = sem_result.get("week")
+            if not isinstance(semester_value, str) or not isinstance(week_value, int):
+                return False, "学期信息格式错误"
+            self.semester = semester_value
+            self.current_week = week_value
 
         # 获取所有教室列表（查询整学期有课的教室作为基准）
-        logger.info("正在获取所有教室列表...")
-        classroom_service = ClassroomService(self.session)
+        if self.semester:
+            logger.info("正在获取所有教室列表...")
+            classroom_service = ClassroomService(self.session)
 
-        # 不传教学楼参数，获取所有教室
-        room_success, rooms = classroom_service.fetch_all_classrooms(semester_value, "")
-        if room_success and isinstance(rooms, list):
-            self.all_classrooms = rooms
-            logger.info(f"共获取到 {len(self.all_classrooms)} 个教室")
-        else:
-            logger.warning(f"获取教室列表失败: {rooms}")
-            self.all_classrooms = []
+            # 不传教学楼参数，获取所有教室
+            room_success, rooms = classroom_service.fetch_all_classrooms(self.semester, "")
+            if room_success and isinstance(rooms, list):
+                self.all_classrooms = rooms
+                self.last_refresh = datetime.now()
+                logger.info(f"共获取到 {len(self.all_classrooms)} 个教室")
+
+                # 保存到缓存
+                self._save_cache()
+            else:
+                if self.all_classrooms:
+                    logger.warning(f"获取教室列表失败但有缓存，继续使用: {rooms}")
+                else:
+                    logger.warning(f"获取教室列表失败: {rooms}")
+                    self.all_classrooms = []
 
         return True, "初始化成功"
+
+    def refresh(self) -> Tuple[bool, str]:
+        """强制刷新数据"""
+        logger.info("开始强制刷新数据...")
+        return self.initialize(force=True)
 
     def ensure_initialized(self) -> Tuple[bool, str]:
         """确保服务已初始化"""
@@ -724,8 +843,10 @@ class EmptyClassroomQueryService:
     def get_info(self) -> Dict:
         """获取当前服务状态信息"""
         return {
-            "initialized": self.session is not None,
+            "initialized": self.session is not None or len(self.all_classrooms) > 0,
             "semester": self.semester,
             "current_week": self.current_week,
             "total_classrooms": len(self.all_classrooms),
+            "last_refresh": self.last_refresh.strftime("%Y-%m-%d %H:%M:%S") if self.last_refresh else None,
+            "refresh_interval": Config.REFRESH_INTERVAL,
         }
