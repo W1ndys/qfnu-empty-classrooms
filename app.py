@@ -188,6 +188,59 @@ from typing import Optional
 # 全局服务实例
 service_manager = ServiceManager()
 
+# 标记是否已经初始化（避免重复初始化）
+_initialized = False
+
+
+def init_app():
+    """初始化应用（供 gunicorn 等 WSGI 服务器调用）"""
+    global _initialized
+    if _initialized:
+        return
+
+    _initialized = True
+
+    logger.info("=" * 50)
+    logger.info("空教室查询 Web 服务")
+    logger.info("=" * 50)
+
+    # 验证配置
+    valid, msg = Config.validate()
+    if not valid:
+        logger.error(msg)
+        return
+
+    logger.info(f"账号: {Config.USERNAME[:4]}****")
+    logger.info(f"刷新间隔: {Config.REFRESH_INTERVAL}秒")
+
+    # 启动时初始化服务（优先从缓存恢复）
+    logger.info("正在初始化查询服务...")
+    success, result = service_manager.initialize()
+    if success:
+        logger.info(f"服务初始化成功: {result}")
+    else:
+        logger.warning(f"服务初始化失败: {result}")
+        logger.warning("服务将继续启动，等待定时刷新重试")
+
+    # 启动定时刷新线程
+    service_manager.start_refresh_thread()
+
+    logger.info("=" * 50)
+
+    # 发送飞书启动通知
+    mode_str = "高级模式" if Config.USE_ADVANCED_API else "普通模式"
+    init_status = "成功" if success else "失败"
+    send_feishu_notification(
+        f"[空教室查询服务启动]\n"
+        f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"模式: {mode_str}\n"
+        f"初始化: {init_status}"
+    )
+
+
+# 模块导入时自动初始化（支持 gunicorn 等 WSGI 服务器）
+init_app()
+
 
 def is_mobile(user_agent_string: str) -> bool:
     """检测是否为移动设备"""
@@ -325,45 +378,10 @@ def api_health():
 
 
 def main():
-    """启动 Flask 服务"""
-    logger.info("=" * 50)
-    logger.info("空教室查询 Web 服务")
-    logger.info("=" * 50)
-
-    # 验证配置
-    valid, msg = Config.validate()
-    if not valid:
-        logger.error(msg)
-        return 1
-
-    logger.info(f"账号: {Config.USERNAME[:4]}****")
-    logger.info(f"刷新间隔: {Config.REFRESH_INTERVAL}秒")
-
-    # 启动时初始化服务（优先从缓存恢复）
-    logger.info("正在初始化查询服务...")
-    success, result = service_manager.initialize()
-    if success:
-        logger.info(f"服务初始化成功: {result}")
-    else:
-        logger.warning(f"服务初始化失败: {result}")
-        logger.warning("服务将继续启动，等待定时刷新重试")
-
-    # 启动定时刷新线程
-    service_manager.start_refresh_thread()
+    """启动 Flask 服务（仅用于直接运行 python app.py）"""
+    # init_app() 已在模块导入时自动调用，无需重复
 
     logger.info(f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")
-    logger.info("=" * 50)
-
-    # 发送飞书启动通知
-    mode_str = "高级模式" if Config.USE_ADVANCED_API else "普通模式"
-    init_status = "成功" if success else "失败"
-    send_feishu_notification(
-        f"[空教室查询服务启动]\n"
-        f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        f"模式: {mode_str}\n"
-        f"初始化: {init_status}\n"
-        f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}"
-    )
 
     try:
         app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)
