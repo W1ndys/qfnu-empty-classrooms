@@ -314,9 +314,10 @@ class SessionManager:
 class SemesterService:
     """学期信息服务"""
 
-    def __init__(self, session: requests.Session):
+    def __init__(self, session: requests.Session, is_advanced_mode: bool = False):
         self.session = session
         self.base_url = Config.SCHOOL_URL
+        self.is_advanced_mode = is_advanced_mode
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         }
@@ -327,12 +328,20 @@ class SemesterService:
             semester = None
             week = None
 
-            # 从 xsMain_new.jsp 获取周次信息
-            main_url = f"{self.base_url}/jsxsd/framework/xsMain_new.jsp?t1=1"
+            # 根据模式选择不同的主页 URL
+            # 高级模式(教师账号): jsMain_new.jsp
+            # 普通模式(学生账号): xsMain_new.jsp
+            if self.is_advanced_mode:
+                main_page = "jsMain_new.jsp"
+            else:
+                main_page = "xsMain_new.jsp"
+
+            main_url = f"{self.base_url}/jsxsd/framework/{main_page}?t1=1"
             main_response = self.session.get(main_url, headers=self.headers, timeout=10)
 
             if main_response.status_code == 200:
                 week = self._parse_current_week(main_response.text)
+                logger.debug(f"从 {main_page} 解析周次: {week}")
 
             # 从课表查询页面获取学期信息
             kb_url = f"{self.base_url}/jsxsd/kbcx/kbxx_kc"
@@ -342,10 +351,13 @@ class SemesterService:
                 semester = self._parse_selected_semester(kb_response.text)
                 if not week:
                     week = self._parse_current_week(kb_response.text)
+                    logger.debug(f"从 kbxx_kc 解析周次: {week}")
 
             if semester and week:
+                logger.info(f"获取学期信息成功: 学期={semester}, 周次={week}")
                 return True, {"semester": semester, "week": week}
             elif semester:
+                logger.warning(f"无法解析周次，使用默认值1: 学期={semester}")
                 return True, {"semester": semester, "week": 1}
             else:
                 return False, "无法解析学期和周次信息"
@@ -700,19 +712,42 @@ class DateService:
 
     @staticmethod
     def calculate_week_and_weekday(
-        target_date: datetime, current_week: int
+        target_date: datetime, current_week: int, week_reference_date: Optional[datetime] = None
     ) -> Tuple[int, int]:
-        """计算目标日期的周次和星期几"""
-        today = datetime.now()
-        today_weekday = today.isoweekday()
-        delta_days = (target_date.date() - today.date()).days
-        target_weekday = ((today_weekday - 1 + delta_days) % 7) + 1
+        """计算目标日期的周次和星期几
+        
+        Args:
+            target_date: 目标日期
+            current_week: 参考周次（week_reference_date 对应的周次）
+            week_reference_date: 参考日期，即 current_week 对应的日期。
+                                 如果为 None，则使用当前时间。
+        
+        Returns:
+            (目标周次, 目标星期几)
+        """
+        # 使用参考日期或当前时间
+        reference_date = week_reference_date if week_reference_date else datetime.now()
+        reference_weekday = reference_date.isoweekday()
+        
+        # 计算从参考日期到目标日期的天数差
+        delta_days = (target_date.date() - reference_date.date()).days
+        
+        # 计算目标日期是星期几
+        target_weekday = ((reference_weekday - 1 + delta_days) % 7) + 1
 
+        # 计算周次差
         weeks_diff = 0
         if delta_days > 0:
-            days_to_sunday = 7 - today_weekday
+            # 目标日期在参考日期之后
+            days_to_sunday = 7 - reference_weekday
             if delta_days > days_to_sunday:
                 weeks_diff = 1 + (delta_days - days_to_sunday - 1) // 7
+        elif delta_days < 0:
+            # 目标日期在参考日期之前
+            # 计算需要回退多少周
+            days_from_monday = reference_weekday - 1
+            if abs(delta_days) > days_from_monday:
+                weeks_diff = -1 - (abs(delta_days) - days_from_monday - 1) // 7
 
         target_week = current_week + weeks_diff
         return target_week, target_weekday
@@ -960,8 +995,8 @@ class EmptyClassroomQueryService:
             return False, "登录返回类型错误"
         self.session = login_result
 
-        # 获取学期信息
-        semester_service = SemesterService(self.session)
+        # 获取学期信息（普通模式使用学生主页）
+        semester_service = SemesterService(self.session, is_advanced_mode=False)
         sem_success, sem_result = semester_service.fetch_semester_and_week()
         if not sem_success:
             if self.semester and self.current_week:
@@ -1079,9 +1114,10 @@ class EmptyClassroomQueryService:
             return False, "服务未正确初始化"
 
         # 计算目标日期的周次和星期
+        # 使用 last_refresh 作为周次参考日期，因为 current_week 是那时获取的
         target_date = datetime.now() + timedelta(days=day_offset)
         target_week, target_weekday = DateService.calculate_week_and_weekday(
-            target_date, self.current_week
+            target_date, self.current_week, self.last_refresh
         )
 
         # 生成缓存键并尝试从缓存获取结果
@@ -1306,10 +1342,10 @@ class AdvancedEmptyClassroomQueryService:
             self._load_always_empty_classrooms()
             return True, "初始化成功（使用缓存）"
 
-        # 获取学期信息
+        # 获取学期信息（高级模式使用教师主页）
         if self.session is None:
             return False, "Session 未初始化"
-        semester_service = SemesterService(self.session)
+        semester_service = SemesterService(self.session, is_advanced_mode=True)
         sem_success, sem_result = semester_service.fetch_semester_and_week()
         if not sem_success:
             if self.semester and self.current_week:
@@ -1536,14 +1572,14 @@ class AdvancedEmptyClassroomQueryService:
         end_section: str,
         day_offset: int = 0,
     ) -> Tuple[bool, Dict | str]:
-        """查询空教室
-        
+        """查询空教室（高级模式）
+
         Args:
             building_keyword: 教学楼名称，如 "综合教学楼"
             start_section: 开始节次，如 "01", "03", "05" 等
             end_section: 结束节次，如 "02", "04", "06" 等
             day_offset: 日期偏移，0=今天，1=明天，-1=昨天
-            
+
         Returns:
             (成功标志, 结果数据或错误信息)
         """
@@ -1556,9 +1592,10 @@ class AdvancedEmptyClassroomQueryService:
             return False, "服务未正确初始化"
 
         # 计算目标日期的周次和星期
+        # 使用 last_refresh 作为周次参考日期，因为 current_week 是那时获取的
         target_date = datetime.now() + timedelta(days=day_offset)
         target_week, target_weekday = DateService.calculate_week_and_weekday(
-            target_date, self.current_week
+            target_date, self.current_week, self.last_refresh
         )
 
         # 生成缓存键并尝试从缓存获取结果

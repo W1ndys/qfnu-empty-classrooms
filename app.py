@@ -316,7 +316,9 @@ def api_query():
             if current_week:
                 from datetime import timedelta
                 target_date = datetime.now() + timedelta(days=day_offset)
-                target_week, _ = DateService.calculate_week_and_weekday(target_date, current_week)
+                # 获取 last_refresh 作为周次参考日期
+                last_refresh = service_manager.query_service.last_refresh
+                target_week, _ = DateService.calculate_week_and_weekday(target_date, current_week, last_refresh)
                 if target_week < 1 or target_week > 18:
                     return jsonify({
                         "code": 4, 
