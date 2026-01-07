@@ -12,7 +12,7 @@ import json
 import base64
 import pickle
 from datetime import datetime, timedelta
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, List, Dict, Optional, Set
 from pathlib import Path
 
 import requests
@@ -1177,6 +1177,10 @@ class AdvancedEmptyClassroomQueryService:
         self._query_cache: Dict[str, Tuple[Dict, datetime]] = {}
         # Session 管理器
         self._session_manager = SessionManager()
+        # 全年无课教室集合（服务启动时加载）
+        self._always_empty_classrooms: Set[str] = set()
+        # 全年无课教室加载状态
+        self._always_empty_loaded: bool = False
 
     def _load_cache(self) -> bool:
         """从缓存文件加载学期信息"""
@@ -1295,6 +1299,8 @@ class AdvancedEmptyClassroomQueryService:
         # 如果缓存有效且不需要刷新，使用缓存的学期信息
         if cache_loaded and not self._needs_refresh():
             logger.info("使用缓存的学期信息")
+            # 加载全年无课教室（如果尚未加载）
+            self._load_always_empty_classrooms()
             return True, "初始化成功（使用缓存）"
 
         # 获取学期信息
@@ -1317,6 +1323,9 @@ class AdvancedEmptyClassroomQueryService:
 
         self.last_refresh = datetime.now()
         self._save_cache()
+
+        # 加载全年无课教室
+        self._load_always_empty_classrooms()
 
         return True, "初始化成功"
 
@@ -1360,6 +1369,76 @@ class AdvancedEmptyClassroomQueryService:
         ]
         for key in expired_keys:
             del self._query_cache[key]
+
+
+    def _load_always_empty_classrooms(self) -> None:
+        """加载全年无课教室
+        
+        查询1-20周、星期一到星期日、1-11节、教室为空的条件，
+        获取全年都空闲的教室列表，存储到内存中。
+        这些教室可能是非正常公共教室，需要特殊标注提醒用户。
+        """
+        if self._always_empty_loaded:
+            logger.info("全年无课教室已加载，跳过")
+            return
+            
+        if self.session is None or self.semester is None:
+            logger.warning("Session或学期信息未初始化，无法加载全年无课教室")
+            return
+        
+        logger.info("开始加载全年无课教室...")
+        
+        try:
+            advanced_service = AdvancedClassroomService(self.session)
+            
+            # 构造请求表单数据：查询1-20周、星期一到星期日、1-11节、教室为空
+            form_data = {
+                "typewhere": "jszq",
+                "xnxqh": self.semester,
+                "gnq_mh": "",
+                "jsmc_mh": "",  # 教室名称为空，查询所有教室
+                "bjfh": "=",
+                "jszt": "8",  # 8代表完全空闲
+                "zc": "1",    # 开始周次
+                "zc2": "20",  # 结束周次
+                "xq": "1",    # 开始星期
+                "xq2": "7",   # 结束星期
+                "jc": "01",   # 开始节次
+                "jc2": "11",  # 结束节次
+                "kbjcmsid": "94786EE0ABE2D3B2E0531E64A8C09931",
+            }
+            
+            response = advanced_service.session.post(
+                advanced_service.QUERY_URL,
+                data=form_data,
+                headers=advanced_service.headers,
+                timeout=60,  # 全年查询可能较慢，增加超时时间
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"加载全年无课教室失败，状态码: {response.status_code}")
+                return
+            
+            # 检测登录是否过期
+            login_expired_keywords = ["请输入账号", "请输入密码", "用户登录", "LoginToXk"]
+            for keyword in login_expired_keywords:
+                if keyword in response.text:
+                    logger.warning(f"加载全年无课教室时检测到登录过期: {keyword}")
+                    return
+            
+            # 解析响应HTML，提取教室列表
+            classrooms = advanced_service._extract_classrooms(response.text)
+            self._always_empty_classrooms = set(classrooms)
+            self._always_empty_loaded = True
+            
+            logger.info(f"全年无课教室加载完成，共 {len(self._always_empty_classrooms)} 个教室")
+            if self._always_empty_classrooms:
+                logger.debug(f"全年无课教室列表: {sorted(self._always_empty_classrooms)}")
+                
+        except requests.RequestException as e:
+            logger.error(f"加载全年无课教室网络请求错误: {e}")
+        except Exception as e:
+            logger.error(f"加载全年无课教室失败: {e}")
 
     def ensure_initialized(self) -> Tuple[bool, str]:
         """确保服务已初始化"""
@@ -1498,6 +1577,14 @@ class AdvancedEmptyClassroomQueryService:
 
         weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
 
+        # 标注全年无课教室
+        always_empty_in_result = []
+        if self._always_empty_loaded and self._always_empty_classrooms:
+            always_empty_in_result = sorted([
+                classroom for classroom in query_result 
+                if classroom in self._always_empty_classrooms
+            ])
+
         result = {
             "date": target_date.strftime("%Y-%m-%d"),
             "weekday": target_weekday,
@@ -1511,6 +1598,9 @@ class AdvancedEmptyClassroomQueryService:
             "total_count": len(query_result),
             "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "from_cache": False,
+            # 全年无课教室信息
+            "always_empty_classrooms": always_empty_in_result,
+            "always_empty_count": len(always_empty_in_result),
         }
 
         # 缓存查询结果
@@ -1530,4 +1620,7 @@ class AdvancedEmptyClassroomQueryService:
             "refresh_interval": Config.REFRESH_INTERVAL,
             "query_cache_count": len(self._query_cache),
             "mode": "advanced",
+            # 全年无课教室信息
+            "always_empty_loaded": self._always_empty_loaded,
+            "always_empty_count": len(self._always_empty_classrooms),
         }
