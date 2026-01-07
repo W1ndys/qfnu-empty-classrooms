@@ -81,6 +81,7 @@ class AuthService:
         """识别验证码"""
         try:
             import ddddocr
+
             ocr = ddddocr.DdddOcr(show_ad=False)
             return ocr.classification(image_content)
         except ImportError:
@@ -88,7 +89,9 @@ class AuthService:
         except Exception:
             return None
 
-    def login(self, username: str, password: str) -> Tuple[bool, requests.Session | str]:
+    def login(
+        self, username: str, password: str
+    ) -> Tuple[bool, requests.Session | str]:
         """登录教务系统"""
         session = requests.Session()
 
@@ -298,7 +301,9 @@ class ClassroomService:
         # 所有教室列表缓存（按教学楼关键词分类）
         self._all_classrooms_cache: Dict[str, List[str]] = {}
 
-    def fetch_all_classrooms(self, semester: str, building_keyword: str = "") -> Tuple[bool, List[str] | str]:
+    def fetch_all_classrooms(
+        self, semester: str, building_keyword: str = ""
+    ) -> Tuple[bool, List[str] | str]:
         """获取所有教室列表
 
         通过查询空字符串条件来获取本学期所有有课的教室
@@ -318,12 +323,12 @@ class ClassroomService:
                 "jzwid": "",
                 "skjsid": "",
                 "skjs": building_keyword,  # 教学楼关键词搜索
-                "zc1": "1",
-                "zc2": "18",  # 查询整个学期
-                "skxq1": "1",
-                "skxq2": "7",  # 周一到周日
-                "jc1": "01",
-                "jc2": "11",  # 全天
+                "zc1": "",
+                "zc2": "",  # 查询整个学期
+                "skxq1": "",
+                "skxq2": "",  # 周一到周日
+                "jc1": "",
+                "jc2": "",  # 全天
             }
 
             response = self.session.post(
@@ -402,7 +407,14 @@ class ClassroomService:
 
     def _is_login_expired(self, response_text: str) -> bool:
         """检查登录是否过期"""
-        expired_keywords = ["请先登录", "登录超时", "会话已过期", "重新登录", "login", "Login"]
+        expired_keywords = [
+            "请先登录",
+            "登录超时",
+            "会话已过期",
+            "重新登录",
+            "login",
+            "Login",
+        ]
         return any(keyword in response_text for keyword in expired_keywords)
 
     def _extract_classrooms_from_table(self, html_content: str) -> List[str]:
@@ -433,7 +445,11 @@ class ClassroomService:
                     classroom_name = first_td.get_text(strip=True)
 
                 # 过滤掉表头和无效数据
-                if classroom_name and classroom_name != "教室\\节次" and not classroom_name.startswith("教室"):
+                if (
+                    classroom_name
+                    and classroom_name != "教室\\节次"
+                    and not classroom_name.startswith("教室")
+                ):
                     classroom_list.append(classroom_name)
 
         return classroom_list
@@ -485,7 +501,12 @@ class ClassroomService:
         return True, empty_classrooms
 
     def query_all_slots(
-        self, semester: str, all_classrooms: List[str], week: int, weekday: int, keyword: str = ""
+        self,
+        semester: str,
+        all_classrooms: List[str],
+        week: int,
+        weekday: int,
+        keyword: str = "",
     ) -> Dict[str, List[str]]:
         """查询所有时间段的空教室
 
