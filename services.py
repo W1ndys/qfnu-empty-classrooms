@@ -10,6 +10,7 @@ import os
 import re
 import json
 import base64
+import pickle
 from datetime import datetime, timedelta
 from typing import Tuple, List, Dict, Optional
 from pathlib import Path
@@ -40,6 +41,7 @@ class Config:
     USERNAME = os.environ.get("QFNU_USERNAME", "")
     PASSWORD = os.environ.get("QFNU_PASSWORD", "")
     MAX_RETRIES = 3
+    MAX_CAPTCHA_RETRIES = 3  # 验证码最大尝试次数
 
     # Flask 配置
     FLASK_HOST = os.environ.get("FLASK_HOST", "0.0.0.0")
@@ -49,6 +51,7 @@ class Config:
     # 缓存配置
     CACHE_DIR = Path(os.environ.get("CACHE_DIR", os.path.dirname(os.path.abspath(__file__)))) / "cache"
     CACHE_FILE = CACHE_DIR / "classroom_cache.json"
+    SESSION_FILE = CACHE_DIR / "session_cache.pkl"  # Session 序列化文件
     REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL", "600"))  # 默认10分钟
 
     # 高级账号配置
@@ -107,12 +110,18 @@ class AuthService:
             return None
 
     def login(
-        self, username: str, password: str
+        self, username: str, password: str, max_captcha_retries: int = 3
     ) -> Tuple[bool, requests.Session | str]:
-        """登录教务系统"""
+        """登录教务系统
+        
+        Args:
+            username: 用户名
+            password: 密码
+            max_captcha_retries: 验证码最大尝试次数，默认3次
+        """
         session = requests.Session()
 
-        for attempt in range(Config.MAX_RETRIES):
+        for attempt in range(max_captcha_retries):
             try:
                 # 1. 获取初始 Cookie
                 try:
@@ -132,17 +141,20 @@ class AuthService:
                     return False, "无法连接到教务系统"
 
                 if not verify_resp.content:
+                    logger.debug(f"验证码获取失败，尝试 {attempt + 1}/{max_captcha_retries}")
                     continue
 
                 if (
                     b"html" in verify_resp.content[:20].lower()
                     or b"<!doctype" in verify_resp.content[:20].lower()
                 ):
+                    logger.debug(f"验证码内容异常，尝试 {attempt + 1}/{max_captcha_retries}")
                     continue
 
                 # 识别验证码
                 captcha_code = self._ocr_captcha(verify_resp.content)
                 if not captcha_code:
+                    logger.debug(f"验证码识别失败，尝试 {attempt + 1}/{max_captcha_retries}")
                     continue
 
                 # 3. 构造登录参数
@@ -162,6 +174,7 @@ class AuthService:
 
                 # 5. 判断登录结果
                 if "验证码错误" in login_text:
+                    logger.debug(f"验证码错误，尝试 {attempt + 1}/{max_captcha_retries}")
                     continue
                 elif "密码错误" in login_text or "账号或密码错误" in login_text:
                     return False, "账号或密码错误"
@@ -174,6 +187,7 @@ class AuthService:
                 )
 
                 if username in info_resp.text or "退出" in info_resp.text:
+                    logger.info("登录成功")
                     return True, session
                 else:
                     return False, "登录验证失败"
@@ -183,7 +197,115 @@ class AuthService:
             except Exception as e:
                 return False, f"系统错误: {str(e)}"
 
-        return False, "验证码识别多次失败，请稍后重试"
+        return False, f"验证码识别{max_captcha_retries}次均失败，请稍后重试"
+
+
+class SessionManager:
+    """Session 管理器 - 负责 Session 的序列化、反序列化和过期检测"""
+    
+    # 登录过期的关键词
+    LOGIN_EXPIRED_KEYWORDS = ["请输入账号", "请输入密码", "用户登录", "LoginToXk"]
+    
+    def __init__(self):
+        self.base_url = Config.SCHOOL_URL
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+    
+    @staticmethod
+    def save_session(session: requests.Session) -> bool:
+        """将 Session 序列化保存到文件
+        
+        Args:
+            session: 要保存的 Session 对象
+            
+        Returns:
+            是否保存成功
+        """
+        try:
+            Config.ensure_cache_dir()
+            with open(Config.SESSION_FILE, "wb") as f:
+                pickle.dump(session.cookies, f)
+            logger.info(f"Session 已保存到: {Config.SESSION_FILE}")
+            return True
+        except Exception as e:
+            logger.error(f"保存 Session 失败: {e}")
+            return False
+    
+    @staticmethod
+    def load_session() -> Optional[requests.Session]:
+        """从文件加载 Session
+        
+        Returns:
+            加载的 Session 对象，如果失败返回 None
+        """
+        try:
+            if not Config.SESSION_FILE.exists():
+                logger.info("Session 缓存文件不存在")
+                return None
+            
+            with open(Config.SESSION_FILE, "rb") as f:
+                cookies = pickle.load(f)
+            
+            session = requests.Session()
+            session.cookies = cookies
+            logger.info("Session 已从缓存加载")
+            return session
+        except Exception as e:
+            logger.warning(f"加载 Session 失败: {e}")
+            return None
+    
+    @staticmethod
+    def delete_session() -> None:
+        """删除保存的 Session 文件"""
+        try:
+            if Config.SESSION_FILE.exists():
+                Config.SESSION_FILE.unlink()
+                logger.info("Session 缓存文件已删除")
+        except Exception as e:
+            logger.warning(f"删除 Session 文件失败: {e}")
+    
+    def is_session_expired(self, session: requests.Session) -> bool:
+        """检测 Session 是否过期
+        
+        通过请求一个需要登录的页面，检查响应内容是否包含登录页面的关键词
+        
+        Args:
+            session: 要检测的 Session 对象
+            
+        Returns:
+            True 表示已过期，False 表示有效
+        """
+        try:
+            # 请求一个需要登录才能访问的页面
+            test_url = f"{self.base_url}/jsxsd/framework/xsMain_new.jsp"
+            response = session.get(test_url, headers=self.headers, timeout=10)
+            
+            # 检查响应内容是否包含登录过期的关键词
+            for keyword in self.LOGIN_EXPIRED_KEYWORDS:
+                if keyword in response.text:
+                    logger.warning(f"Session 已过期，检测到关键词: {keyword}")
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.warning(f"检测 Session 状态失败: {e}")
+            # 发生异常时视为过期，触发重新登录
+            return True
+    
+    def check_response_expired(self, response_text: str) -> bool:
+        """检查响应内容是否表示登录已过期
+        
+        Args:
+            response_text: 响应内容文本
+            
+        Returns:
+            True 表示已过期，False 表示有效
+        """
+        for keyword in self.LOGIN_EXPIRED_KEYWORDS:
+            if keyword in response_text:
+                return True
+        return False
 
 
 class SemesterService:
@@ -630,6 +752,7 @@ class AdvancedClassroomService:
             
         Returns:
             (成功标志, 空教室列表或错误信息)
+            如果检测到登录过期，返回 (False, 响应文本) 供上层检测
         """
         try:
             # 构造请求表单数据
@@ -658,6 +781,13 @@ class AdvancedClassroomService:
             
             if response.status_code != 200:
                 return False, f"请求失败，状态码: {response.status_code}"
+            
+            # 检测登录是否过期（返回原始响应文本供上层检测）
+            login_expired_keywords = ["请输入账号", "请输入密码", "用户登录", "LoginToXk"]
+            for keyword in login_expired_keywords:
+                if keyword in response.text:
+                    logger.warning(f"检测到登录过期关键词: {keyword}")
+                    return False, response.text
             
             # 解析响应HTML，提取教室列表
             classrooms = self._extract_classrooms(response.text)
@@ -1045,6 +1175,8 @@ class AdvancedEmptyClassroomQueryService:
         self.last_refresh: Optional[datetime] = None
         # 查询结果缓存: {cache_key: (result, timestamp)}
         self._query_cache: Dict[str, Tuple[Dict, datetime]] = {}
+        # Session 管理器
+        self._session_manager = SessionManager()
 
     def _load_cache(self) -> bool:
         """从缓存文件加载学期信息"""
@@ -1119,31 +1251,51 @@ class AdvancedEmptyClassroomQueryService:
         Args:
             force: 是否强制刷新，忽略缓存
         """
-        # 尝试从缓存恢复（非强制刷新时）
-        if not force and self._load_cache():
-            if not self._needs_refresh():
-                logger.info("使用缓存数据，无需刷新")
-                return True, "从缓存恢复成功"
-            else:
-                logger.info("缓存已过期，需要刷新")
-
+        # 尝试从缓存恢复学期信息（非强制刷新时）
+        cache_loaded = False
+        if not force:
+            cache_loaded = self._load_cache()
+        
         # 验证配置
         valid, msg = Config.validate()
         if not valid:
             return False, msg
 
-        # 登录
-        auth_service = AuthService()
-        login_success, login_result = auth_service.login(Config.USERNAME, Config.PASSWORD)
-        if not login_success:
-            if self.semester and self.current_week:
-                logger.warning(f"登录失败但有缓存数据，继续使用缓存: {login_result}")
-                return True, "登录失败，使用缓存数据"
-            return False, f"登录失败: {login_result}"
+        # 尝试从缓存加载 Session（非强制刷新时）
+        session_loaded = False
+        if not force:
+            cached_session = SessionManager.load_session()
+            if cached_session:
+                # 验证缓存的 Session 是否有效
+                if not self._session_manager.is_session_expired(cached_session):
+                    self.session = cached_session
+                    session_loaded = True
+                    logger.info("使用缓存的 Session")
+                else:
+                    logger.info("缓存的 Session 已过期，需要重新登录")
+                    SessionManager.delete_session()
 
-        if not isinstance(login_result, requests.Session):
-            return False, "登录返回类型错误"
-        self.session = login_result
+        # 如果没有有效的缓存 Session，则登录
+        if not session_loaded:
+            auth_service = AuthService()
+            login_success, login_result = auth_service.login(
+                Config.USERNAME, Config.PASSWORD, 
+                max_captcha_retries=Config.MAX_CAPTCHA_RETRIES
+            )
+            if not login_success:
+                return False, f"登录失败: {login_result}"
+
+            if not isinstance(login_result, requests.Session):
+                return False, "登录返回类型错误"
+            self.session = login_result
+            
+            # 保存 Session 到缓存
+            SessionManager.save_session(self.session)
+
+        # 如果缓存有效且不需要刷新，使用缓存的学期信息
+        if cache_loaded and not self._needs_refresh():
+            logger.info("使用缓存的学期信息")
+            return True, "初始化成功（使用缓存）"
 
         # 获取学期信息
         semester_service = SemesterService(self.session)
@@ -1215,6 +1367,84 @@ class AdvancedEmptyClassroomQueryService:
             return self.initialize()
         return True, "已初始化"
 
+
+    def _relogin(self) -> bool:
+        """重新登录并更新 Session
+        
+        Returns:
+            是否重新登录成功
+        """
+        logger.info("正在重新登录...")
+        auth_service = AuthService()
+        login_success, login_result = auth_service.login(
+            Config.USERNAME, Config.PASSWORD,
+            max_captcha_retries=Config.MAX_CAPTCHA_RETRIES
+        )
+        
+        if login_success and isinstance(login_result, requests.Session):
+            self.session = login_result
+            SessionManager.save_session(self.session)
+            logger.info("重新登录成功")
+            return True
+        else:
+            logger.error(f"重新登录失败: {login_result}")
+            return False
+
+    def _query_with_retry(
+        self,
+        building_keyword: str,
+        target_week: int,
+        target_weekday: int,
+        start_section: str,
+        end_section: str,
+        max_retries: int = 2,
+    ) -> Optional[List[str]]:
+        """带登录过期检测和自动重试的查询
+        
+        Args:
+            building_keyword: 教学楼名称
+            target_week: 周次
+            target_weekday: 星期几
+            start_section: 开始节次
+            end_section: 结束节次
+            max_retries: 最大重试次数
+            
+        Returns:
+            空教室列表，失败返回 None
+        """
+        for attempt in range(max_retries):
+            if self.session is None or self.semester is None:
+                logger.error("Session 或学期信息为空")
+                return None
+            
+            advanced_service = AdvancedClassroomService(self.session)
+            query_success, query_result = advanced_service.query_empty_classrooms(
+                self.semester,
+                building_keyword,
+                target_week,
+                target_weekday,
+                start_section,
+                end_section,
+            )
+            
+            if query_success and isinstance(query_result, list):
+                return query_result
+            
+            # 检查是否是登录过期导致的失败
+            if isinstance(query_result, str) and self._session_manager.check_response_expired(query_result):
+                logger.warning(f"检测到登录过期，尝试重新登录 (尝试 {attempt + 1}/{max_retries})")
+                SessionManager.delete_session()
+                if self._relogin():
+                    continue  # 重新登录成功，重试查询
+                else:
+                    return None  # 重新登录失败
+            
+            # 其他错误，直接返回
+            logger.error(f"查询失败: {query_result}")
+            return None
+        
+        return None
+
     def query(
         self,
         building_keyword: str,
@@ -1258,22 +1488,13 @@ class AdvancedEmptyClassroomQueryService:
             cached_result["from_cache"] = True
             return True, cached_result
 
-        # 使用高级接口查询空闲教室
-        advanced_service = AdvancedClassroomService(self.session)
-        query_success, query_result = advanced_service.query_empty_classrooms(
-            self.semester,
-            building_keyword,
-            target_week,
-            target_weekday,
-            start_section,
-            end_section,
+        # 使用高级接口查询空闲教室（带登录过期检测和自动重试）
+        query_result = self._query_with_retry(
+            building_keyword, target_week, target_weekday, start_section, end_section
         )
-
-        if not query_success:
-            return False, query_result if isinstance(query_result, str) else "查询失败"
-
-        if not isinstance(query_result, list):
-            return False, "查询结果类型错误"
+        
+        if query_result is None:
+            return False, "查询失败，请稍后重试"
 
         weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
 

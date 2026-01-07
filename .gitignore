@@ -5,6 +5,7 @@
 output
 logs/
 .serena
+cache
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
