@@ -11,7 +11,7 @@
 5. 启动时预加载数据，使用缓存避免频繁请求教务系统
 """
 
-from lo
+from logger import setup_logger
 import threading
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for
@@ -26,6 +26,9 @@ app = Flask(__name__)
 # 修改 Jinja2 的变量定界符，避免与 Vue 冲突
 app.jinja_env.variable_start_string = "[["
 app.jinja_env.variable_end_string = "]]"
+
+# 配置日志
+setup_logger()
 
 
 # 全局服务管理
