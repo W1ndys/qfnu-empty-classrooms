@@ -43,9 +43,10 @@ def send_feishu_notification(message: str) -> bool:
         是否发送成功
     """
     if not Config.FEISHU_WEBHOOK_URL:
-        logger.debug("未配置飞书 Webhook URL，跳过通知")
+        logger.info("未配置飞书 Webhook URL，跳过通知")
         return False
 
+    logger.info(f"正在发送飞书通知...")
     try:
         payload = {
             "msg_type": "text",
