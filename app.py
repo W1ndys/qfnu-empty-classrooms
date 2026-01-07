@@ -14,12 +14,13 @@
 from logger import setup_logger
 import threading
 from datetime import datetime
+from typing import Optional
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from user_agents import parse
 from loguru import logger
 
 
-from services import EmptyClassroomQueryService, Config
+from services import EmptyClassroomQueryService, AdvancedEmptyClassroomQueryService, Config
 
 app = Flask(__name__)
 
@@ -40,7 +41,13 @@ class ServiceManager:
         self.last_init = None
         self.error = None
         self.lock = threading.Lock()
-        self.query_service = EmptyClassroomQueryService()
+        # 根据配置选择使用高级模式或普通模式
+        if Config.USE_ADVANCED_API:
+            logger.info("使用高级API模式")
+            self.query_service = AdvancedEmptyClassroomQueryService()
+        else:
+            logger.info("使用普通模式")
+            self.query_service = EmptyClassroomQueryService()
         self._refresh_thread: Optional[threading.Thread] = None
         self._stop_refresh = threading.Event()
 
@@ -52,7 +59,10 @@ class ServiceManager:
 
                 # 强制刷新时重新创建服务实例
                 if force:
-                    self.query_service = EmptyClassroomQueryService()
+                    if Config.USE_ADVANCED_API:
+                        self.query_service = AdvancedEmptyClassroomQueryService()
+                    else:
+                        self.query_service = EmptyClassroomQueryService()
 
                 success, result = self.query_service.initialize(force=force)
 

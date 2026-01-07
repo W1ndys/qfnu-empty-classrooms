@@ -51,6 +51,9 @@ class Config:
     CACHE_FILE = CACHE_DIR / "classroom_cache.json"
     REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL", "600"))  # 默认10分钟
 
+    # 高级账号配置
+    USE_ADVANCED_API = os.environ.get("USE_ADVANCED_API", "false").lower() == "true"
+
     @classmethod
     def validate(cls) -> Tuple[bool, str]:
         """验证配置是否完整"""
@@ -590,6 +593,114 @@ class DateService:
         return target_week, target_weekday
 
 
+class AdvancedClassroomService:
+    """高级账号教室查询服务
+    
+    使用教务系统的 jsjy_query2 接口直接查询空闲教室，
+    该接口可以直接返回指定条件下的空闲教室列表。
+    """
+
+    QUERY_URL = f"{Config.SCHOOL_URL}/jsxsd/kbxx/jsjy_query2"
+
+    def __init__(self, session: requests.Session):
+        self.session = session
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+    def query_empty_classrooms(
+        self,
+        semester: str,
+        building_name: str,
+        week: int,
+        weekday: int,
+        start_section: str,
+        end_section: str,
+    ) -> Tuple[bool, List[str] | str]:
+        """查询指定条件下的空闲教室
+        
+        Args:
+            semester: 学期字符串，如 "2025-2026-1"
+            building_name: 教学楼名称，如 "综合教学楼"
+            week: 周次
+            weekday: 星期几 (1-7)
+            start_section: 开始节次，如 "01"
+            end_section: 结束节次，如 "02"
+            
+        Returns:
+            (成功标志, 空教室列表或错误信息)
+        """
+        try:
+            # 构造请求表单数据
+            form_data = {
+                "typewhere": "jszq",
+                "xnxqh": semester,
+                "gnq_mh": "",
+                "jsmc_mh": building_name,
+                "bjfh": "=",
+                "jszt": "8",  # 8代表完全空闲
+                "zc": str(week),
+                "zc2": str(week),
+                "xq": str(weekday),
+                "xq2": str(weekday),
+                "jc": start_section,
+                "jc2": end_section,
+                "kbjcmsid": "94786EE0ABE2D3B2E0531E64A8C09931",
+            }
+            
+            response = self.session.post(
+                self.QUERY_URL,
+                data=form_data,
+                headers=self.headers,
+                timeout=30,
+            )
+            
+            if response.status_code != 200:
+                return False, f"请求失败，状态码: {response.status_code}"
+            
+            # 解析响应HTML，提取教室列表
+            classrooms = self._extract_classrooms(response.text)
+            return True, classrooms
+            
+        except requests.RequestException as e:
+            return False, f"网络请求错误: {str(e)}"
+        except Exception as e:
+            return False, f"查询失败: {str(e)}"
+
+    def _extract_classrooms(self, html_content: str) -> List[str]:
+        """解析HTML，提取表格第一列的教室名称，并去除括号及其内容
+        
+        Args:
+            html_content: 包含HTML内容的字符串
+            
+        Returns:
+            处理后的教室名称列表
+        """
+        soup = BeautifulSoup(html_content, "html.parser")
+        classroom_list = []
+
+        # 寻找包含教室信息的元素
+        # 在HTML中，教室名称所在的单元格都包含一个 name="jsids" 的 input 复选框
+        checkboxes = soup.find_all("input", {"name": "jsids"})
+
+        for box in checkboxes:
+            # 获取 input 标签的父级 td 标签
+            td = box.parent
+            if td:
+                # 获取 td 中的纯文本
+                full_text = td.get_text(strip=True)
+                
+                # 使用正则表达式去除括号及其中间的内容
+                clean_name = re.sub(r"\(.*?\)|（.*?）", "", full_text)
+                clean_name = clean_name.strip()
+                
+                if clean_name:
+                    classroom_list.append(clean_name)
+
+        return classroom_list
+
+
 class EmptyClassroomQueryService:
     """空教室查询主服务 - 整合所有服务
 
@@ -910,4 +1021,292 @@ class EmptyClassroomQueryService:
             "last_refresh": self.last_refresh.strftime("%Y-%m-%d %H:%M:%S") if self.last_refresh else None,
             "refresh_interval": Config.REFRESH_INTERVAL,
             "query_cache_count": len(self._query_cache),
+        }
+
+
+class AdvancedEmptyClassroomQueryService:
+    """高级账号空教室查询主服务
+    
+    使用高级账号的 jsjy_query2 接口直接查询空闲教室，
+    相比普通模式，该模式直接返回空闲教室，无需计算差集。
+    
+    功能说明：
+    1. 支持从缓存恢复数据，快速启动
+    2. 定时刷新学期信息
+    3. 前端传入参数：教学楼名称、开始节次、结束节次、日期偏移
+    4. 后端计算目标日期的周次和星期几
+    5. 直接查询指定条件的空闲教室
+    """
+
+    def __init__(self):
+        self.session: Optional[requests.Session] = None
+        self.semester: Optional[str] = None
+        self.current_week: Optional[int] = None
+        self.last_refresh: Optional[datetime] = None
+        # 查询结果缓存: {cache_key: (result, timestamp)}
+        self._query_cache: Dict[str, Tuple[Dict, datetime]] = {}
+
+    def _load_cache(self) -> bool:
+        """从缓存文件加载学期信息"""
+        try:
+            if not Config.CACHE_FILE.exists():
+                logger.info("缓存文件不存在")
+                return False
+
+            with open(Config.CACHE_FILE, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+
+            if not isinstance(cache_data, dict):
+                logger.warning("缓存数据格式错误")
+                return False
+
+            self.semester = cache_data.get("semester")
+            self.current_week = cache_data.get("current_week")
+            last_refresh_str = cache_data.get("last_refresh")
+
+            if last_refresh_str:
+                self.last_refresh = datetime.fromisoformat(last_refresh_str)
+
+            if self.semester and self.current_week:
+                logger.info(
+                    f"从缓存恢复学期信息: 学期={self.semester}, 周次={self.current_week}"
+                )
+                return True
+            else:
+                logger.warning("缓存数据不完整")
+                return False
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"缓存文件JSON解析失败: {e}")
+            return False
+        except Exception as e:
+            logger.warning(f"加载缓存失败: {e}")
+            return False
+
+    def _save_cache(self) -> bool:
+        """保存学期信息到缓存文件"""
+        try:
+            Config.ensure_cache_dir()
+
+            cache_data = {
+                "semester": self.semester,
+                "current_week": self.current_week,
+                "all_classrooms": [],  # 高级模式不需要缓存教室列表
+                "last_refresh": self.last_refresh.isoformat() if self.last_refresh else None,
+                "saved_at": datetime.now().isoformat(),
+            }
+
+            with open(Config.CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"缓存已保存: {Config.CACHE_FILE}")
+            return True
+
+        except Exception as e:
+            logger.error(f"保存缓存失败: {e}")
+            return False
+
+    def _needs_refresh(self) -> bool:
+        """检查是否需要刷新数据"""
+        if not self.last_refresh:
+            return True
+        elapsed = (datetime.now() - self.last_refresh).total_seconds()
+        return elapsed >= Config.REFRESH_INTERVAL
+
+    def initialize(self, force: bool = False) -> Tuple[bool, str]:
+        """初始化服务（登录 + 获取学期信息）
+        
+        Args:
+            force: 是否强制刷新，忽略缓存
+        """
+        # 尝试从缓存恢复（非强制刷新时）
+        if not force and self._load_cache():
+            if not self._needs_refresh():
+                logger.info("使用缓存数据，无需刷新")
+                return True, "从缓存恢复成功"
+            else:
+                logger.info("缓存已过期，需要刷新")
+
+        # 验证配置
+        valid, msg = Config.validate()
+        if not valid:
+            return False, msg
+
+        # 登录
+        auth_service = AuthService()
+        login_success, login_result = auth_service.login(Config.USERNAME, Config.PASSWORD)
+        if not login_success:
+            if self.semester and self.current_week:
+                logger.warning(f"登录失败但有缓存数据，继续使用缓存: {login_result}")
+                return True, "登录失败，使用缓存数据"
+            return False, f"登录失败: {login_result}"
+
+        if not isinstance(login_result, requests.Session):
+            return False, "登录返回类型错误"
+        self.session = login_result
+
+        # 获取学期信息
+        semester_service = SemesterService(self.session)
+        sem_success, sem_result = semester_service.fetch_semester_and_week()
+        if not sem_success:
+            if self.semester and self.current_week:
+                logger.warning(f"获取学期信息失败但有缓存，继续使用: {sem_result}")
+            else:
+                return False, f"获取学期信息失败: {sem_result}"
+        else:
+            if not isinstance(sem_result, dict):
+                return False, "学期信息返回类型错误"
+            semester_value = sem_result.get("semester")
+            week_value = sem_result.get("week")
+            if not isinstance(semester_value, str) or not isinstance(week_value, int):
+                return False, "学期信息格式错误"
+            self.semester = semester_value
+            self.current_week = week_value
+
+        self.last_refresh = datetime.now()
+        self._save_cache()
+
+        return True, "初始化成功"
+
+    def refresh(self) -> Tuple[bool, str]:
+        """强制刷新数据"""
+        logger.info("开始强制刷新数据...")
+        return self.initialize(force=True)
+
+    def _get_query_cache_key(
+        self, building_keyword: str, start_section: str, end_section: str,
+        target_week: int, target_weekday: int
+    ) -> str:
+        """生成查询缓存的键"""
+        return f"adv:{self.semester}:{target_week}:{target_weekday}:{start_section}:{end_section}:{building_keyword}"
+
+    def _get_cached_query(self, cache_key: str) -> Optional[Dict]:
+        """获取缓存的查询结果"""
+        if cache_key not in self._query_cache:
+            return None
+
+        result, timestamp = self._query_cache[cache_key]
+        elapsed = (datetime.now() - timestamp).total_seconds()
+
+        if elapsed >= Config.REFRESH_INTERVAL:
+            del self._query_cache[cache_key]
+            return None
+
+        return result
+
+    def _set_query_cache(self, cache_key: str, result: Dict) -> None:
+        """设置查询结果缓存"""
+        self._query_cache[cache_key] = (result, datetime.now())
+        self._cleanup_query_cache()
+
+    def _cleanup_query_cache(self) -> None:
+        """清理过期的查询缓存"""
+        now = datetime.now()
+        expired_keys = [
+            key for key, (_, timestamp) in self._query_cache.items()
+            if (now - timestamp).total_seconds() >= Config.REFRESH_INTERVAL
+        ]
+        for key in expired_keys:
+            del self._query_cache[key]
+
+    def ensure_initialized(self) -> Tuple[bool, str]:
+        """确保服务已初始化"""
+        if not self.session or not self.semester:
+            return self.initialize()
+        return True, "已初始化"
+
+    def query(
+        self,
+        building_keyword: str,
+        start_section: str,
+        end_section: str,
+        day_offset: int = 0,
+    ) -> Tuple[bool, Dict | str]:
+        """查询空教室
+        
+        Args:
+            building_keyword: 教学楼名称，如 "综合教学楼"
+            start_section: 开始节次，如 "01", "03", "05" 等
+            end_section: 结束节次，如 "02", "04", "06" 等
+            day_offset: 日期偏移，0=今天，1=明天，-1=昨天
+            
+        Returns:
+            (成功标志, 结果数据或错误信息)
+        """
+        # 确保已初始化
+        success, msg = self.ensure_initialized()
+        if not success:
+            return False, msg
+
+        if self.current_week is None or self.semester is None or self.session is None:
+            return False, "服务未正确初始化"
+
+        # 计算目标日期的周次和星期
+        target_date = datetime.now() + timedelta(days=day_offset)
+        target_week, target_weekday = DateService.calculate_week_and_weekday(
+            target_date, self.current_week
+        )
+
+        # 生成缓存键并尝试从缓存获取结果
+        cache_key = self._get_query_cache_key(
+            building_keyword, start_section, end_section, target_week, target_weekday
+        )
+        cached_result = self._get_cached_query(cache_key)
+        if cached_result is not None:
+            logger.debug(f"命中查询缓存: {cache_key}")
+            cached_result["query_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cached_result["from_cache"] = True
+            return True, cached_result
+
+        # 使用高级接口查询空闲教室
+        advanced_service = AdvancedClassroomService(self.session)
+        query_success, query_result = advanced_service.query_empty_classrooms(
+            self.semester,
+            building_keyword,
+            target_week,
+            target_weekday,
+            start_section,
+            end_section,
+        )
+
+        if not query_success:
+            return False, query_result if isinstance(query_result, str) else "查询失败"
+
+        if not isinstance(query_result, list):
+            return False, "查询结果类型错误"
+
+        weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
+
+        result = {
+            "date": target_date.strftime("%Y-%m-%d"),
+            "weekday": target_weekday,
+            "weekday_name": weekday_name,
+            "semester": self.semester,
+            "week": target_week,
+            "start_section": start_section,
+            "end_section": end_section,
+            "building_keyword": building_keyword,
+            "empty_classrooms": sorted(query_result),
+            "total_count": len(query_result),
+            "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "from_cache": False,
+        }
+
+        # 缓存查询结果
+        self._set_query_cache(cache_key, result)
+        logger.debug(f"缓存查询结果: {cache_key}")
+
+        return True, result
+
+    def get_info(self) -> Dict:
+        """获取当前服务状态信息"""
+        return {
+            "initialized": self.session is not None,
+            "semester": self.semester,
+            "current_week": self.current_week,
+            "total_classrooms": 0,  # 高级模式不缓存教室列表
+            "last_refresh": self.last_refresh.strftime("%Y-%m-%d %H:%M:%S") if self.last_refresh else None,
+            "refresh_interval": Config.REFRESH_INTERVAL,
+            "query_cache_count": len(self._query_cache),
+            "mode": "advanced",
         }
