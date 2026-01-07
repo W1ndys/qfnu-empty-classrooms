@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>空教室查询 - 曲阜师范大学</title>
+    <title>空教室查询</title>
     <!-- Element Plus CSS -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <!-- Element Plus Icons -->
@@ -392,7 +392,7 @@
                     <div class="logo-icon">
                         <el-icon><school /></el-icon>
                     </div>
-                    <span class="logo-text">曲阜师范大学 · 空教室查询</span>
+                    <span class="logo-text">空教室查询</span>
                 </div>
                 <div class="header-actions">
                     <el-button
@@ -430,19 +430,31 @@
                         <span class="form-item__label">开始节次</span>
                         <el-select v-model="queryForm.startSection" placeholder="选择开始节次">
                             <el-option label="第1节" value="01" />
+                            <el-option label="第2节" value="02" />
                             <el-option label="第3节" value="03" />
+                            <el-option label="第4节" value="04" />
                             <el-option label="第5节" value="05" />
+                            <el-option label="第6节" value="06" />
                             <el-option label="第7节" value="07" />
+                            <el-option label="第8节" value="08" />
                             <el-option label="第9节" value="09" />
+                            <el-option label="第10节" value="10" />
+                            <el-option label="第11节" value="11" />
                         </el-select>
                     </div>
                     <div class="form-item">
                         <span class="form-item__label">结束节次</span>
                         <el-select v-model="queryForm.endSection" placeholder="选择结束节次">
+                            <el-option label="第1节" value="01" />
                             <el-option label="第2节" value="02" />
+                            <el-option label="第3节" value="03" />
                             <el-option label="第4节" value="04" />
+                            <el-option label="第5节" value="05" />
                             <el-option label="第6节" value="06" />
+                            <el-option label="第7节" value="07" />
                             <el-option label="第8节" value="08" />
+                            <el-option label="第9节" value="09" />
+                            <el-option label="第10节" value="10" />
                             <el-option label="第11节" value="11" />
                         </el-select>
                     </div>
@@ -538,7 +550,7 @@
 
         <!-- 底部信息 -->
         <footer class="footer">
-            <div>数据来源：曲阜师范大学教务系统</div>
+            <div>数据来源：手动查询系统，AI辅助整理</div>
             <div class="footer-links">
                 <a href="/mobile">移动端版本</a>
             </div>
