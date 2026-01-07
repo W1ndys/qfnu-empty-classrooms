@@ -1,7 +1,7 @@
 [project]
 name = "qfnu-empty-classrooms"
-version = "1.0.0"
-description = "曲阜师范大学空教室查询系统 - Flask Web 服务"
+version = "0.1.0"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,14 +13,3 @@ dependencies = [
     "user-agents>=2.2.0",
     "loguru>=0.7.0",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["."]
-only-include = ["app.py", "services.py", "templates"]
-
-[tool.hatch.build.targets.sdist]
-only-include = ["app.py", "services.py", "templates", "pyproject.toml", "README.md", ".env.example"]
