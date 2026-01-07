@@ -84,7 +84,8 @@ class AuthService:
             import ddddocr
 
             ocr = ddddocr.DdddOcr(show_ad=False)
-            return ocr.classification(image_content)
+            result = ocr.classification(image_content)
+            return str(result) if result else None
         except ImportError:
             return None
         except Exception:
@@ -223,7 +224,7 @@ class SemesterService:
                 if selected_option:
                     value = selected_option.get("value")
                     # 验证学期格式: YYYY-YYYY-N
-                    if value and re.match(r"\d{4}-\d{4}-\d", value):
+                    if value and isinstance(value, str) and re.match(r"\d{4}-\d{4}-\d", value):
                         return value
         except Exception:
             pass
@@ -526,7 +527,7 @@ class ClassroomService:
             success, classrooms = self.query_empty_classrooms(
                 semester, all_classrooms, week, weekday, start, end, keyword
             )
-            if success:
+            if success and isinstance(classrooms, list):
                 result[slot_key] = classrooms
 
         return result
@@ -602,27 +603,37 @@ class EmptyClassroomQueryService:
 
         # 登录
         auth_service = AuthService()
-        success, result = auth_service.login(Config.USERNAME, Config.PASSWORD)
-        if not success:
-            return False, f"登录失败: {result}"
-        self.session = result
+        login_success, login_result = auth_service.login(Config.USERNAME, Config.PASSWORD)
+        if not login_success:
+            return False, f"登录失败: {login_result}"
+        # login_result 是 Session 类型（登录成功时）
+        if not isinstance(login_result, requests.Session):
+            return False, "登录返回类型错误"
+        self.session = login_result
 
         # 获取学期信息
         semester_service = SemesterService(self.session)
-        success, result = semester_service.fetch_semester_and_week()
-        if not success:
-            return False, f"获取学期信息失败: {result}"
+        sem_success, sem_result = semester_service.fetch_semester_and_week()
+        if not sem_success:
+            return False, f"获取学期信息失败: {sem_result}"
 
-        self.semester = result["semester"]
-        self.current_week = result["week"]
+        # sem_result 是 Dict 类型（成功时）
+        if not isinstance(sem_result, dict):
+            return False, "学期信息返回类型错误"
+        semester_value = sem_result.get("semester")
+        week_value = sem_result.get("week")
+        if not isinstance(semester_value, str) or not isinstance(week_value, int):
+            return False, "学期信息格式错误"
+        self.semester = semester_value
+        self.current_week = week_value
 
         # 获取所有教室列表（查询整学期有课的教室作为基准）
         logger.info("正在获取所有教室列表...")
         classroom_service = ClassroomService(self.session)
 
         # 不传教学楼参数，获取所有教室
-        success, rooms = classroom_service.fetch_all_classrooms(self.semester, "")
-        if success:
+        room_success, rooms = classroom_service.fetch_all_classrooms(semester_value, "")
+        if room_success and isinstance(rooms, list):
             self.all_classrooms = rooms
             logger.info(f"共获取到 {len(self.all_classrooms)} 个教室")
         else:
@@ -659,6 +670,10 @@ class EmptyClassroomQueryService:
         if not success:
             return False, msg
 
+        # 此时 current_week 和 semester 必定已初始化
+        if self.current_week is None or self.semester is None or self.session is None:
+            return False, "服务未正确初始化"
+
         # 计算目标日期的周次和星期
         target_date = datetime.now() + timedelta(days=day_offset)
         target_week, target_weekday = DateService.calculate_week_and_weekday(
@@ -673,7 +688,7 @@ class EmptyClassroomQueryService:
 
         # 查询空教室
         classroom_service = ClassroomService(self.session)
-        success, result = classroom_service.query_empty_classrooms(
+        query_success, query_result = classroom_service.query_empty_classrooms(
             self.semester,
             base_classrooms,
             target_week,
@@ -683,8 +698,12 @@ class EmptyClassroomQueryService:
             building_keyword,
         )
 
-        if not success:
-            return False, result
+        if not query_success:
+            return False, query_result if isinstance(query_result, str) else "查询失败"
+
+        # 此时 query_result 是 List[str]
+        if not isinstance(query_result, list):
+            return False, "查询结果类型错误"
 
         weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
 
@@ -697,8 +716,8 @@ class EmptyClassroomQueryService:
             "start_section": start_section,
             "end_section": end_section,
             "building_keyword": building_keyword,
-            "empty_classrooms": sorted(result),
-            "total_count": len(result),
+            "empty_classrooms": sorted(query_result),
+            "total_count": len(query_result),
             "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
