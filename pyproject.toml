@@ -13,3 +13,8 @@ dependencies = [
     "user-agents>=2.2.0",
     "loguru>=0.7.0",
 ]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
