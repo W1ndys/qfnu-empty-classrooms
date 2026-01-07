@@ -13,7 +13,6 @@
 
 from logger import setup_logger
 import threading
-import time
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from user_agents import parse

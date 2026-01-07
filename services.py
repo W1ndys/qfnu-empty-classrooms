@@ -607,6 +607,8 @@ class EmptyClassroomQueryService:
         self.current_week: Optional[int] = None
         self.all_classrooms: List[str] = []  # 所有教室列表缓存
         self.last_refresh: Optional[datetime] = None  # 上次刷新时间
+        # 查询结果缓存: {cache_key: (result, timestamp)}
+        self._query_cache: Dict[str, Tuple[Dict, datetime]] = {}
 
     def _load_cache(self) -> bool:
         """从缓存文件加载数据"""
@@ -761,6 +763,45 @@ class EmptyClassroomQueryService:
         logger.info("开始强制刷新数据...")
         return self.initialize(force=True)
 
+    def _get_query_cache_key(
+        self, building_keyword: str, start_section: str, end_section: str,
+        target_week: int, target_weekday: int
+    ) -> str:
+        """生成查询缓存的键"""
+        return f"{self.semester}:{target_week}:{target_weekday}:{start_section}:{end_section}:{building_keyword}"
+
+    def _get_cached_query(self, cache_key: str) -> Optional[Dict]:
+        """获取缓存的查询结果"""
+        if cache_key not in self._query_cache:
+            return None
+
+        result, timestamp = self._query_cache[cache_key]
+        elapsed = (datetime.now() - timestamp).total_seconds()
+
+        if elapsed >= Config.REFRESH_INTERVAL:
+            # 缓存已过期，删除
+            del self._query_cache[cache_key]
+            return None
+
+        return result
+
+    def _set_query_cache(self, cache_key: str, result: Dict) -> None:
+        """设置查询结果缓存"""
+        self._query_cache[cache_key] = (result, datetime.now())
+
+        # 清理过期缓存（避免内存无限增长）
+        self._cleanup_query_cache()
+
+    def _cleanup_query_cache(self) -> None:
+        """清理过期的查询缓存"""
+        now = datetime.now()
+        expired_keys = [
+            key for key, (_, timestamp) in self._query_cache.items()
+            if (now - timestamp).total_seconds() >= Config.REFRESH_INTERVAL
+        ]
+        for key in expired_keys:
+            del self._query_cache[key]
+
     def ensure_initialized(self) -> Tuple[bool, str]:
         """确保服务已初始化"""
         if not self.session or not self.semester:
@@ -799,6 +840,18 @@ class EmptyClassroomQueryService:
             target_date, self.current_week
         )
 
+        # 生成缓存键并尝试从缓存获取结果
+        cache_key = self._get_query_cache_key(
+            building_keyword, start_section, end_section, target_week, target_weekday
+        )
+        cached_result = self._get_cached_query(cache_key)
+        if cached_result is not None:
+            logger.debug(f"命中查询缓存: {cache_key}")
+            # 更新查询时间为当前时间
+            cached_result["query_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cached_result["from_cache"] = True
+            return True, cached_result
+
         # 过滤出匹配关键词的教室作为基准
         if building_keyword:
             base_classrooms = [c for c in self.all_classrooms if building_keyword in c]
@@ -826,7 +879,7 @@ class EmptyClassroomQueryService:
 
         weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
 
-        return True, {
+        result = {
             "date": target_date.strftime("%Y-%m-%d"),
             "weekday": target_weekday,
             "weekday_name": weekday_name,
@@ -838,7 +891,14 @@ class EmptyClassroomQueryService:
             "empty_classrooms": sorted(query_result),
             "total_count": len(query_result),
             "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "from_cache": False,
         }
+
+        # 缓存查询结果
+        self._set_query_cache(cache_key, result)
+        logger.debug(f"缓存查询结果: {cache_key}")
+
+        return True, result
 
     def get_info(self) -> Dict:
         """获取当前服务状态信息"""
@@ -849,4 +909,5 @@ class EmptyClassroomQueryService:
             "total_classrooms": len(self.all_classrooms),
             "last_refresh": self.last_refresh.strftime("%Y-%m-%d %H:%M:%S") if self.last_refresh else None,
             "refresh_interval": Config.REFRESH_INTERVAL,
+            "query_cache_count": len(self._query_cache),
         }
