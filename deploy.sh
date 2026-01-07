@@ -20,6 +20,9 @@ REMOTE_PORT="58089"
 REMOTE_USER="root"
 REMOTE_PATH="/root/qfnu-empty-classrooms"
 
+# Supervisor 进程名称
+SUPERVISOR_PROCESS="qfnu-empty-classrooms:qfnu-empty-classrooms_00"
+
 # SSH 私钥文件路径 (Git Bash 格式)
 PRIVATE_KEY_PATH="/c/Users/W1ndys/.ssh/id_rsa"
 
@@ -83,10 +86,12 @@ while [[ $# -gt 0 ]]; do
             echo "用法: $0 [选项]"
             echo ""
             echo "选项:"
-            echo "  -r, --restart       部署后重启远程服务"
+            echo "  -r, --restart       部署后通过 Supervisor 重启远程服务"
             echo "  -i, --install       在远程服务器上安装/更新依赖 (使用国内镜像源)"
             echo "  -n, --dry-run       仅显示将要执行的操作，不实际执行"
             echo "      --help          显示帮助信息"
+            echo ""
+            echo "Supervisor 进程: $SUPERVISOR_PROCESS"
             exit 0
             ;;
         *)
@@ -278,15 +283,16 @@ echo '依赖安装完成'
     fi
 fi
 
-# 重启服务（可选）
+# 重启服务（可选）- 使用 Supervisor 进程守护
 if [ "$RESTART_SERVICE" = true ]; then
     echo ""
-    echo -e "${YELLOW}正在重启远程服务...${NC}"
+    echo -e "${YELLOW}正在通过 Supervisor 重启远程服务...${NC}"
+    echo -e "${GREEN}  进程名称: $SUPERVISOR_PROCESS${NC}"
     if [ "$DRY_RUN" = false ]; then
-        ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "cd $REMOTE_PATH && pkill -f 'python.*app.py' 2>/dev/null || true; sleep 2; nohup ./start.sh > /dev/null 2>&1 &"
-        echo -e "${GREEN}服务重启命令已发送${NC}"
+        ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "supervisorctl restart $SUPERVISOR_PROCESS"
+        echo -e "${GREEN}服务已通过 Supervisor 重启${NC}"
     else
-        echo -e "${GREEN}[模拟] 将重启远程服务${NC}"
+        echo -e "${GREEN}[模拟] 将执行: supervisorctl restart $SUPERVISOR_PROCESS${NC}"
     fi
 fi
 
@@ -300,7 +306,7 @@ echo -e "部署路径:   ${GREEN}$REMOTE_PATH${NC}"
 echo ""
 
 if [ "$RESTART_SERVICE" = false ]; then
-    echo -e "${YELLOW}提示: 使用 --restart 参数可在部署后自动重启服务${NC}"
+    echo -e "${YELLOW}提示: 使用 --restart 参数可在部署后通过 Supervisor 自动重启服务${NC}"
     echo -e "      使用 --install 参数可在远程服务器上安装依赖 (国内镜像源)"
-    echo -e "      或手动登录服务器执行: cd $REMOTE_PATH && ./start.sh"
+    echo -e "      或手动执行: supervisorctl restart $SUPERVISOR_PROCESS"
 fi
