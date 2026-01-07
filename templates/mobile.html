@@ -100,30 +100,75 @@
             padding: var(--spacing-lg);
         }
 
-        /* 日期信息卡片 */
-        .date-card {
+        /* 查询表单卡片 */
+        .query-card {
             background: var(--bg-secondary);
             border-radius: var(--radius-lg);
-            padding: var(--spacing-xl);
+            padding: var(--spacing-lg);
             margin-bottom: var(--spacing-lg);
             box-shadow: var(--shadow-sm);
         }
 
-        .date-card__header {
+        .query-card__title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .form-item {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-item__label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-xs);
+            display: block;
+        }
+
+        .query-btn {
+            width: 100%;
+            margin-top: var(--spacing-lg);
+            background: var(--primary-color);
+            border: none;
+            border-radius: var(--radius-md);
+            height: 44px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* 结果卡片 */
+        .result-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .result-card__header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             margin-bottom: var(--spacing-md);
         }
 
-        .date-card__title {
-            font-size: 22px;
+        .result-card__title {
+            font-size: 18px;
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        .date-card__weekday {
-            font-size: 15px;
+        .result-card__weekday {
+            font-size: 13px;
             color: var(--primary-color);
             font-weight: 500;
             background: var(--primary-color-opacity-10);
@@ -131,89 +176,33 @@
             border-radius: var(--radius-full);
         }
 
-        .date-card__info {
+        .result-card__info {
             display: flex;
-            gap: var(--spacing-lg);
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
             color: var(--text-secondary);
-            font-size: 13px;
+            font-size: 12px;
+            margin-bottom: var(--spacing-lg);
         }
 
-        .date-card__info-item {
+        .result-card__info-item {
             display: flex;
             align-items: center;
             gap: var(--spacing-xs);
         }
 
-        /* 教学楼选择 */
-        .building-tabs {
-            margin-bottom: var(--spacing-lg);
-        }
-
-        .building-tabs :deep(.van-tabs__nav) {
-            background: transparent;
-        }
-
-        .building-tabs :deep(.van-tab) {
-            color: var(--text-secondary);
-            font-size: 15px;
-        }
-
-        .building-tabs :deep(.van-tab--active) {
-            color: var(--primary-color);
-            font-weight: 600;
-        }
-
-        .building-tabs :deep(.van-tabs__line) {
-            background: var(--primary-color);
-            height: 3px;
-            border-radius: 2px;
-        }
-
-        /* 时间段卡片 */
-        .time-slot-card {
-            background: var(--bg-secondary);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--spacing-md);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .time-slot-card:active {
-            transform: scale(0.98);
-            transition: transform var(--duration-fast) ease-out;
-        }
-
-        .time-slot-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: var(--spacing-lg);
-            border-bottom: 0.5px solid var(--bg-tertiary);
-        }
-
-        .time-slot-title {
-            font-size: 17px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .time-slot-count {
+        .result-card__count {
             font-size: 13px;
             color: var(--bg-secondary);
             background: var(--primary-color);
             padding: 2px 10px;
             border-radius: var(--radius-full);
             font-weight: 500;
+            margin-bottom: var(--spacing-lg);
+            display: inline-block;
         }
 
-        .time-slot-count--empty {
-            background: var(--text-tertiary);
-        }
-
-        .time-slot-body {
-            padding: var(--spacing-lg);
-        }
-
+        /* 教室列表 */
         .classroom-grid {
             display: flex;
             flex-wrap: wrap;
@@ -239,7 +228,7 @@
             color: var(--text-tertiary);
             font-size: 13px;
             text-align: center;
-            padding: var(--spacing-md) 0;
+            padding: var(--spacing-xl) 0;
         }
 
         /* 加载状态 */
@@ -280,22 +269,6 @@
             line-height: 1.5;
         }
 
-        /* 刷新按钮 */
-        .refresh-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            padding: var(--spacing-md) var(--spacing-xxl);
-            font-size: 15px;
-            font-weight: 600;
-        }
-
-        .refresh-btn:active {
-            background: var(--primary-color-dark);
-            transform: scale(0.98);
-        }
-
         /* 底部信息 */
         .footer-info {
             text-align: center;
@@ -304,30 +277,21 @@
             font-size: 11px;
         }
 
-        /* 下拉刷新 */
-        .van-pull-refresh {
-            min-height: calc(100vh - 46px);
-        }
-
-        /* 折叠面板样式 */
-        .time-slot-collapse :deep(.van-collapse-item__title) {
-            padding: var(--spacing-lg);
-        }
-
-        .time-slot-collapse :deep(.van-collapse-item__content) {
-            padding: 0 var(--spacing-lg) var(--spacing-lg);
-        }
-
-        .time-slot-collapse :deep(.van-cell::after) {
-            display: none;
-        }
-
         /* Vant 主题覆盖 */
         :root {
             --van-primary-color: #885021;
             --van-loading-spinner-color: #885021;
-            --van-pull-refresh-loading-icon-color: #885021;
-            --van-tabs-bottom-bar-color: #885021;
+            --van-button-primary-background: #885021;
+            --van-button-primary-border-color: #885021;
+        }
+
+        .van-field {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+        }
+
+        .van-cell {
+            padding: var(--spacing-md);
         }
     </style>
 </head>
@@ -343,107 +307,158 @@
                 <van-icon
                     name="replay"
                     size="20"
-                    :color="refreshing ? '#C7C7CC' : '#885021'"
-                    @click="handleRefresh"
+                    :color="initializing ? '#C7C7CC' : '#885021'"
+                    @click="handleInitialize"
                 />
             </template>
         </van-nav-bar>
 
-        <!-- 下拉刷新 -->
-        <van-pull-refresh
-            v-model="refreshing"
-            @refresh="onRefresh"
-            :pulling-text="'下拉刷新数据'"
-            :loosing-text="'释放立即刷新'"
-            :loading-text="'正在刷新...'"
-            success-text="刷新成功"
-        >
+        <!-- 页面内容 -->
+        <div class="page-content">
+            <!-- 查询表单 -->
+            <div class="query-card">
+                <div class="query-card__title">
+                    <van-icon name="search" />
+                    查询条件
+                </div>
+
+                <div class="form-item">
+                    <span class="form-item__label">教学楼关键词</span>
+                    <van-field
+                        v-model="queryForm.building"
+                        placeholder="如：格物楼B10"
+                        clearable
+                    />
+                </div>
+
+                <div class="form-item">
+                    <span class="form-item__label">开始节次</span>
+                    <van-field
+                        v-model="startSectionText"
+                        readonly
+                        is-link
+                        placeholder="选择开始节次"
+                        @click="showStartPicker = true"
+                    />
+                </div>
+
+                <div class="form-item">
+                    <span class="form-item__label">结束节次</span>
+                    <van-field
+                        v-model="endSectionText"
+                        readonly
+                        is-link
+                        placeholder="选择结束节次"
+                        @click="showEndPicker = true"
+                    />
+                </div>
+
+                <div class="form-item">
+                    <span class="form-item__label">日期</span>
+                    <van-field
+                        v-model="dayOffsetText"
+                        readonly
+                        is-link
+                        placeholder="选择日期"
+                        @click="showDayPicker = true"
+                    />
+                </div>
+
+                <van-button
+                    type="primary"
+                    class="query-btn"
+                    :loading="loading"
+                    @click="handleQuery"
+                >
+                    {{ loading ? '查询中...' : '查询空教室' }}
+                </van-button>
+            </div>
+
             <!-- 加载状态 -->
-            <div v-if="loading && !data" class="loading-container">
+            <div v-if="loading" class="loading-container">
                 <van-loading type="spinner" color="#885021" size="36" />
-                <div class="loading-text">正在加载空教室数据...</div>
+                <div class="loading-text">正在查询空教室...</div>
             </div>
 
             <!-- 错误状态 -->
-            <div v-else-if="error && !data" class="error-container">
+            <div v-else-if="error" class="error-container">
                 <van-icon name="warning-o" class="error-icon" />
                 <div class="error-text">{{ error }}</div>
-                <button class="refresh-btn" @click="fetchData">重新加载</button>
+                <van-button type="primary" size="small" @click="handleQuery">重新查询</van-button>
             </div>
 
-            <!-- 数据展示 -->
-            <div v-else-if="data" class="page-content">
-                <!-- 日期信息卡片 -->
-                <div class="date-card">
-                    <div class="date-card__header">
-                        <div class="date-card__title">{{ data.date }}</div>
-                        <div class="date-card__weekday">周{{ data.weekday_name }}</div>
+            <!-- 查询结果 -->
+            <div v-else-if="result" class="result-card">
+                <div class="result-card__header">
+                    <div class="result-card__title">
+                        {{ result.date }} 第{{ result.start_section }}-{{ result.end_section }}节
                     </div>
-                    <div class="date-card__info">
-                        <div class="date-card__info-item">
-                            <van-icon name="calendar-o" />
-                            <span>第{{ data.week }}周</span>
-                        </div>
-                        <div class="date-card__info-item">
-                            <van-icon name="clock-o" />
-                            <span>{{ data.query_time }}</span>
-                        </div>
-                    </div>
+                    <span class="result-card__weekday">周{{ result.weekday_name }}</span>
                 </div>
 
-                <!-- 教学楼选择 -->
-                <van-tabs
-                    v-model:active="activeBuilding"
-                    class="building-tabs"
-                    :ellipsis="false"
-                    shrink
-                >
-                    <van-tab
-                        v-for="building in data.buildings"
-                        :key="building.name"
-                        :title="building.name"
+                <div class="result-card__info">
+                    <span class="result-card__info-item">
+                        <van-icon name="calendar-o" />
+                        {{ result.semester }} 第{{ result.week }}周
+                    </span>
+                    <span v-if="result.building_keyword" class="result-card__info-item">
+                        <van-icon name="location-o" />
+                        {{ result.building_keyword }}
+                    </span>
+                </div>
+
+                <span class="result-card__count">{{ result.total_count }} 间空教室</span>
+
+                <div v-if="result.empty_classrooms.length > 0" class="classroom-grid">
+                    <span
+                        v-for="room in result.empty_classrooms"
+                        :key="room"
+                        class="classroom-tag"
                     >
-                        <!-- 时间段列表 -->
-                        <van-collapse v-model="activeSlots" accordion>
-                            <van-collapse-item
-                                v-for="slot in timeSlots"
-                                :key="slot.key"
-                                :name="slot.key"
-                                class="time-slot-card"
-                            >
-                                <template #title>
-                                    <div class="time-slot-header" style="border: none; padding: 0;">
-                                        <span class="time-slot-title">{{ slot.name }}</span>
-                                        <span
-                                            class="time-slot-count"
-                                            :class="{ 'time-slot-count--empty': getClassrooms(building, slot.key).length === 0 }"
-                                        >
-                                            {{ getClassrooms(building, slot.key).length }} 间
-                                        </span>
-                                    </div>
-                                </template>
-                                <div class="classroom-grid" v-if="getClassrooms(building, slot.key).length > 0">
-                                    <span
-                                        v-for="room in getClassrooms(building, slot.key)"
-                                        :key="room"
-                                        class="classroom-tag"
-                                    >
-                                        {{ formatRoomName(room, building.name) }}
-                                    </span>
-                                </div>
-                                <div v-else class="empty-tip">该时段暂无空教室</div>
-                            </van-collapse-item>
-                        </van-collapse>
-                    </van-tab>
-                </van-tabs>
-
-                <!-- 底部信息 -->
-                <div class="footer-info">
-                    数据来源：曲阜师范大学教务系统<br>
-                    更新时间：{{ data.query_time }}
+                        {{ room }}
+                    </span>
+                </div>
+                <div v-else class="empty-tip">
+                    未找到符合条件的空教室
                 </div>
             </div>
-        </van-pull-refresh>
+
+            <!-- 初始提示 -->
+            <div v-else class="empty-tip">
+                请设置查询条件并点击查询按钮
+            </div>
+
+            <!-- 底部信息 -->
+            <div class="footer-info" v-if="result">
+                数据来源：曲阜师范大学教务系统<br>
+                查询时间：{{ result.query_time }}
+            </div>
+        </div>
+
+        <!-- 选择器弹窗 -->
+        <van-popup v-model:show="showStartPicker" position="bottom" round>
+            <van-picker
+                :columns="startSectionOptions"
+                @confirm="onStartConfirm"
+                @cancel="showStartPicker = false"
+            />
+        </van-popup>
+
+        <van-popup v-model:show="showEndPicker" position="bottom" round>
+            <van-picker
+                :columns="endSectionOptions"
+                @confirm="onEndConfirm"
+                @cancel="showEndPicker = false"
+            />
+        </van-popup>
+
+        <van-popup v-model:show="showDayPicker" position="bottom" round>
+            <van-picker
+                :columns="dayOffsetOptions"
+                @confirm="onDayConfirm"
+                @cancel="showDayPicker = false"
+            />
+        </van-popup>
     </div>
 
     <!-- Vue 3 -->
@@ -452,37 +467,139 @@
     <script src="https://fastly.jsdelivr.net/npm/vant@4/lib/vant.min.js"></script>
 
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
+        const { createApp, ref, reactive, computed } = Vue;
+
+        // 根据当前时间计算默认的节次和日期偏移
+        function getDefaultQueryParams() {
+            const now = new Date();
+            const hour = now.getHours();
+
+            let dayOffset = 0;
+            let startSection = '01';
+            let endSection = '11';
+
+            if (hour >= 22 || hour < 0) {
+                // 22点到0点：查询次日1-11节
+                dayOffset = 1;
+                startSection = '01';
+                endSection = '11';
+            } else if (hour >= 0 && hour < 12) {
+                // 0点到12点：查询今日1-11节
+                dayOffset = 0;
+                startSection = '01';
+                endSection = '11';
+            } else if (hour >= 12 && hour < 18) {
+                // 12点到18点：查询今日5-11节
+                dayOffset = 0;
+                startSection = '05';
+                endSection = '11';
+            } else {
+                // 18点到22点：查询今日9-11节
+                dayOffset = 0;
+                startSection = '09';
+                endSection = '11';
+            }
+
+            return { dayOffset, startSection, endSection };
+        }
 
         const app = createApp({
             setup() {
                 const loading = ref(false);
-                const refreshing = ref(false);
+                const initializing = ref(false);
                 const error = ref(null);
-                const data = ref(null);
-                const activeBuilding = ref(0);
-                const activeSlots = ref('slot_1_2');
+                const result = ref(null);
 
-                const timeSlots = [
-                    { key: 'slot_1_2', name: '第1-2节' },
-                    { key: 'slot_3_4', name: '第3-4节' },
-                    { key: 'slot_5_6', name: '第5-6节' },
-                    { key: 'slot_7_8', name: '第7-8节' },
-                    { key: 'slot_9_11', name: '第9-11节' }
+                // 根据时间计算默认值
+                const defaults = getDefaultQueryParams();
+
+                const queryForm = reactive({
+                    building: '',
+                    startSection: defaults.startSection,
+                    endSection: defaults.endSection,
+                    dayOffset: defaults.dayOffset
+                });
+
+                // 选择器显示状态
+                const showStartPicker = ref(false);
+                const showEndPicker = ref(false);
+                const showDayPicker = ref(false);
+
+                // 选项配置
+                const startSectionOptions = [
+                    { text: '第1节', value: '01' },
+                    { text: '第3节', value: '03' },
+                    { text: '第5节', value: '05' },
+                    { text: '第7节', value: '07' },
+                    { text: '第9节', value: '09' }
                 ];
 
-                const fetchData = async () => {
+                const endSectionOptions = [
+                    { text: '第2节', value: '02' },
+                    { text: '第4节', value: '04' },
+                    { text: '第6节', value: '06' },
+                    { text: '第8节', value: '08' },
+                    { text: '第11节', value: '11' }
+                ];
+
+                const dayOffsetOptions = [
+                    { text: '今天', value: 0 },
+                    { text: '明天', value: 1 },
+                    { text: '后天', value: 2 },
+                    { text: '大后天', value: 3 }
+                ];
+
+                // 显示文本
+                const startSectionText = computed(() => {
+                    const item = startSectionOptions.find(i => i.value === queryForm.startSection);
+                    return item ? item.text : '';
+                });
+
+                const endSectionText = computed(() => {
+                    const item = endSectionOptions.find(i => i.value === queryForm.endSection);
+                    return item ? item.text : '';
+                });
+
+                const dayOffsetText = computed(() => {
+                    const item = dayOffsetOptions.find(i => i.value === queryForm.dayOffset);
+                    return item ? item.text : '';
+                });
+
+                // 选择器确认
+                const onStartConfirm = ({ selectedOptions }) => {
+                    queryForm.startSection = selectedOptions[0].value;
+                    showStartPicker.value = false;
+                };
+
+                const onEndConfirm = ({ selectedOptions }) => {
+                    queryForm.endSection = selectedOptions[0].value;
+                    showEndPicker.value = false;
+                };
+
+                const onDayConfirm = ({ selectedOptions }) => {
+                    queryForm.dayOffset = selectedOptions[0].value;
+                    showDayPicker.value = false;
+                };
+
+                const handleQuery = async () => {
                     loading.value = true;
                     error.value = null;
 
                     try {
-                        const response = await fetch('/api/classrooms');
-                        const result = await response.json();
+                        const params = new URLSearchParams({
+                            building: queryForm.building,
+                            start_section: queryForm.startSection,
+                            end_section: queryForm.endSection,
+                            day_offset: queryForm.dayOffset
+                        });
 
-                        if (result.code === 0) {
-                            data.value = result.data;
+                        const response = await fetch(`/api/query?${params}`);
+                        const data = await response.json();
+
+                        if (data.code === 0) {
+                            result.value = data.data;
                         } else {
-                            error.value = result.message || '获取数据失败';
+                            error.value = data.message || '查询失败';
                         }
                     } catch (e) {
                         error.value = '网络错误，请检查网络连接';
@@ -491,71 +608,46 @@
                     }
                 };
 
-                const refreshData = async () => {
+                const handleInitialize = async () => {
+                    if (initializing.value) return;
+                    initializing.value = true;
+
                     try {
                         const response = await fetch('/api/refresh');
-                        const result = await response.json();
+                        const data = await response.json();
 
-                        if (result.code === 0) {
-                            data.value = result.data;
-                            vant.showToast({
-                                message: '刷新成功',
-                                icon: 'success'
-                            });
+                        if (data.code === 0) {
+                            vant.showToast({ message: '初始化成功', icon: 'success' });
                         } else {
-                            vant.showToast({
-                                message: result.message || '刷新失败',
-                                icon: 'fail'
-                            });
+                            vant.showToast({ message: data.message || '初始化失败', icon: 'fail' });
                         }
                     } catch (e) {
-                        vant.showToast({
-                            message: '网络错误',
-                            icon: 'fail'
-                        });
+                        vant.showToast({ message: '网络错误', icon: 'fail' });
+                    } finally {
+                        initializing.value = false;
                     }
                 };
-
-                const onRefresh = async () => {
-                    await refreshData();
-                    refreshing.value = false;
-                };
-
-                const handleRefresh = () => {
-                    if (refreshing.value) return;
-                    refreshing.value = true;
-                    onRefresh();
-                };
-
-                const getClassrooms = (building, slotKey) => {
-                    return building[slotKey] || [];
-                };
-
-                const formatRoomName = (room, buildingName) => {
-                    // 移除教学楼前缀，只显示教室号
-                    if (room.startsWith(buildingName)) {
-                        return room.substring(buildingName.length);
-                    }
-                    return room;
-                };
-
-                onMounted(() => {
-                    fetchData();
-                });
 
                 return {
                     loading,
-                    refreshing,
+                    initializing,
                     error,
-                    data,
-                    activeBuilding,
-                    activeSlots,
-                    timeSlots,
-                    fetchData,
-                    onRefresh,
-                    handleRefresh,
-                    getClassrooms,
-                    formatRoomName
+                    result,
+                    queryForm,
+                    showStartPicker,
+                    showEndPicker,
+                    showDayPicker,
+                    startSectionOptions,
+                    endSectionOptions,
+                    dayOffsetOptions,
+                    startSectionText,
+                    endSectionText,
+                    dayOffsetText,
+                    onStartConfirm,
+                    onEndConfirm,
+                    onDayConfirm,
+                    handleQuery,
+                    handleInitialize
                 };
             }
         });

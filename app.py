@@ -25,64 +25,60 @@ app = Flask(__name__)
 app.jinja_env.variable_start_string = '[['
 app.jinja_env.variable_end_string = ']]'
 
-# 全局数据缓存
-class DataCache:
+# 全局服务管理
+class ServiceManager:
+    """服务管理器 - 管理查询服务的初始化状态"""
+
     def __init__(self):
-        self.data = None
-        self.last_update = None
+        self.initialized = False
+        self.last_init = None
         self.error = None
         self.lock = threading.Lock()
         self.query_service = EmptyClassroomQueryService()
 
-    def get_data(self):
-        """获取缓存的数据"""
-        with self.lock:
-            if self.data:
-                return True, self.data
-            elif self.error:
-                return False, self.error
-            else:
-                return False, "数据尚未加载"
-
-    def refresh(self, force=False):
-        """刷新数据"""
+    def initialize(self, force=False):
+        """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）"""
         with self.lock:
             try:
-                print("[数据] 正在从教务系统获取数据...")
+                print("[服务] 正在初始化查询服务...")
 
-                # 强制刷新时重新初始化服务
+                # 强制刷新时重新创建服务实例
                 if force:
                     self.query_service = EmptyClassroomQueryService()
 
-                success, result = self.query_service.query_tomorrow()
+                success, result = self.query_service.initialize()
 
                 if success:
-                    self.data = result
-                    self.last_update = datetime.now()
+                    self.initialized = True
+                    self.last_init = datetime.now()
                     self.error = None
-                    print(f"[数据] 数据获取成功，更新时间: {self.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
+                    print(f"[服务] 初始化成功，时间: {self.last_init.strftime('%Y-%m-%d %H:%M:%S')}")
                     return True, result
                 else:
+                    self.initialized = False
                     self.error = result
-                    print(f"[数据] 数据获取失败: {result}")
+                    print(f"[服务] 初始化失败: {result}")
                     return False, result
 
             except Exception as e:
+                self.initialized = False
                 self.error = str(e)
-                print(f"[数据] 数据获取异常: {e}")
+                print(f"[服务] 初始化异常: {e}")
                 return False, str(e)
 
     def get_status(self):
-        """获取缓存状态"""
+        """获取服务状态"""
         with self.lock:
+            service_info = self.query_service.get_info()
             return {
-                "has_data": self.data is not None,
-                "last_update": self.last_update.strftime('%Y-%m-%d %H:%M:%S') if self.last_update else None,
-                "error": self.error
+                "initialized": self.initialized,
+                "last_init": self.last_init.strftime('%Y-%m-%d %H:%M:%S') if self.last_init else None,
+                "error": self.error,
+                "service_info": service_info
             }
 
-# 全局缓存实例
-cache = DataCache()
+# 全局服务实例
+service_manager = ServiceManager()
 
 
 def is_mobile(user_agent_string: str) -> bool:
@@ -114,11 +110,49 @@ def mobile():
     return render_template("mobile.html")
 
 
-@app.route("/api/classrooms")
-def api_classrooms():
-    """API: 获取空教室数据（从缓存读取）"""
+@app.route("/api/query")
+def api_query():
+    """API: 实时查询空教室
+
+    请求参数:
+        building: 教学楼关键词，如 "格物楼B10"，默认为空（查所有）
+        start_section: 开始节次，如 "01", "03"，默认 "01"
+        end_section: 结束节次，如 "02", "04"，默认 "02"
+        day_offset: 日期偏移，0=今天，1=明天，默认 0
+
+    返回:
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "date": "2025-01-08",
+                "weekday": 3,
+                "weekday_name": "三",
+                "semester": "2024-2025-1",
+                "week": 18,
+                "start_section": "01",
+                "end_section": "02",
+                "building_keyword": "格物楼",
+                "empty_classrooms": ["格物楼B101", "格物楼B102", ...],
+                "total_count": 10,
+                "query_time": "2025-01-08 10:00:00"
+            }
+        }
+    """
     try:
-        success, result = cache.get_data()
+        # 获取请求参数
+        building = request.args.get("building", "")
+        start_section = request.args.get("start_section", "01")
+        end_section = request.args.get("end_section", "02")
+        day_offset = int(request.args.get("day_offset", "0"))
+
+        # 调用查询服务
+        success, result = service_manager.query_service.query(
+            building_keyword=building,
+            start_section=start_section,
+            end_section=end_section,
+            day_offset=day_offset,
+        )
 
         if success:
             return jsonify({
@@ -133,6 +167,30 @@ def api_classrooms():
                 "data": None
             }), 500
 
+    except ValueError as e:
+        return jsonify({
+            "code": 3,
+            "message": f"参数错误: {str(e)}",
+            "data": None
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "code": 2,
+            "message": f"服务器错误: {str(e)}",
+            "data": None
+        }), 500
+
+
+@app.route("/api/info")
+def api_info():
+    """API: 获取服务状态信息"""
+    try:
+        info = service_manager.query_service.get_info()
+        return jsonify({
+            "code": 0,
+            "message": "success",
+            "data": info
+        })
     except Exception as e:
         return jsonify({
             "code": 2,
@@ -143,15 +201,15 @@ def api_classrooms():
 
 @app.route("/api/refresh")
 def api_refresh():
-    """API: 强制刷新数据（重新登录并查询教务系统）"""
+    """API: 强制刷新服务（重新登录并获取教室列表）"""
     try:
-        success, result = cache.refresh(force=True)
+        success, result = service_manager.initialize(force=True)
 
         if success:
             return jsonify({
                 "code": 0,
-                "message": "刷新成功",
-                "data": result
+                "message": "初始化成功",
+                "data": {"message": result}
             })
         else:
             return jsonify({
@@ -172,13 +230,12 @@ def api_refresh():
 def api_health():
     """API: 健康检查"""
     valid, msg = Config.validate()
-    status = cache.get_status()
+    status = service_manager.get_status()
     return jsonify({
-        "status": "ok" if valid and status["has_data"] else "error",
+        "status": "ok" if valid and status["initialized"] else "error",
         "config_valid": valid,
         "config_message": msg,
-        "buildings": Config.get_buildings(),
-        "cache": status
+        "service": status
     })
 
 
@@ -195,15 +252,14 @@ def main():
         return 1
 
     print(f"[配置] 账号: {Config.USERNAME[:4]}****")
-    print(f"[配置] 教学楼: {Config.get_buildings()}")
 
-    # 启动时预加载数据
-    print("[启动] 正在预加载空教室数据...")
-    success, result = cache.refresh()
+    # 启动时初始化服务
+    print("[启动] 正在初始化查询服务...")
+    success, result = service_manager.initialize()
     if success:
-        print("[启动] 数据预加载成功")
+        print("[启动] 服务初始化成功")
     else:
-        print(f"[警告] 数据预加载失败: {result}")
+        print(f"[警告] 服务初始化失败: {result}")
         print("[警告] 服务将继续启动，可稍后通过 /api/refresh 重试")
 
     print(f"[服务] 地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")

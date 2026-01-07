@@ -36,7 +36,6 @@ class Config:
     SCHOOL_URL = "http://zhjw.qfnu.edu.cn"
     USERNAME = os.environ.get("QFNU_USERNAME", "")
     PASSWORD = os.environ.get("QFNU_PASSWORD", "")
-    BUILDINGS = os.environ.get("QFNU_BUILDINGS", "综合教学楼")
     MAX_RETRIES = 3
 
     # Flask 配置
@@ -45,19 +44,12 @@ class Config:
     FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
     @classmethod
-    def get_buildings(cls) -> List[str]:
-        """获取待查询的教学楼列表"""
-        return [b.strip() for b in cls.BUILDINGS.split(",") if b.strip()]
-
-    @classmethod
     def validate(cls) -> Tuple[bool, str]:
         """验证配置是否完整"""
         if not cls.USERNAME:
             return False, "请设置环境变量 QFNU_USERNAME"
         if not cls.PASSWORD:
             return False, "请设置环境变量 QFNU_PASSWORD"
-        if not cls.get_buildings():
-            return False, "请设置环境变量 QFNU_BUILDINGS"
         return True, "配置验证通过"
 
 
@@ -190,31 +182,21 @@ class SemesterService:
             semester = None
             week = None
 
-            # 从 jsMain_new.jsp 获取周次信息
-            main_url = f"{self.base_url}/jsxsd/framework/jsMain_new.jsp?t1=1"
+            # 从 xsMain_new.jsp 获取周次信息
+            main_url = f"{self.base_url}/jsxsd/framework/xsMain_new.jsp?t1=1"
             main_response = self.session.get(main_url, headers=self.headers, timeout=10)
 
             if main_response.status_code == 200:
                 week = self._parse_current_week(main_response.text)
 
-            # 从课表页面获取学期信息
-            kb_url = f"{self.base_url}/jsxsd/jskb/jskb_list.do"
+            # 从课表查询页面获取学期信息
+            kb_url = f"{self.base_url}/jsxsd/kbcx/kbxx_kc"
             kb_response = self.session.get(kb_url, headers=self.headers, timeout=10)
 
             if kb_response.status_code == 200:
                 semester = self._parse_selected_semester(kb_response.text)
                 if not week:
                     week = self._parse_current_week(kb_response.text)
-
-            # 尝试学生课表
-            if not semester:
-                kb_url = f"{self.base_url}/jsxsd/xskb/xskb_list.do"
-                kb_response = self.session.get(kb_url, headers=self.headers, timeout=10)
-
-                if kb_response.status_code == 200:
-                    semester = self._parse_selected_semester(kb_response.text)
-                    if not week:
-                        week = self._parse_current_week(kb_response.text)
 
             if semester and week:
                 return True, {"semester": semester, "week": week}
@@ -230,11 +212,15 @@ class SemesterService:
         """解析当前选中的学期"""
         try:
             soup = BeautifulSoup(html_content, "html.parser")
-            select_tag = soup.find("select", id="xnxq01id")
-            if select_tag:
+            # 查找 select 标签中 selected 的 option
+            # 例如: <option value="2025-2026-1" selected="selected">2025-2026-1</option>
+            for select_tag in soup.find_all("select"):
                 selected_option = select_tag.find("option", selected=True)
                 if selected_option:
-                    return selected_option.get("value")
+                    value = selected_option.get("value")
+                    # 验证学期格式: YYYY-YYYY-N
+                    if value and re.match(r"\d{4}-\d{4}-\d", value):
+                        return value
         except Exception:
             pass
         return None
@@ -263,7 +249,7 @@ class SemesterService:
                     if week_value and isinstance(week_value, str):
                         return int(week_value)
 
-            # 方法3: 备用方案
+            # 方法3: 备用方案 - 直接从文本匹配
             week_match = re.search(r"第(\d+)周", html_content)
             if week_match:
                 return int(week_match.group(1))
@@ -274,14 +260,21 @@ class SemesterService:
 
 
 class ClassroomService:
-    """空教室查询服务"""
+    """空教室查询服务
+
+    新接口说明：
+    - URL: /jsxsd/kbcx/kbxx_classroom_ifr
+    - 方法: POST
+    - 该接口返回的是有课的教室列表，需要反向过滤得到空教室
+    - 需要在启动时先获取所有教室列表作为基准
+    """
 
     TIME_SLOTS = {
-        "slot_1_2": (1, 2),
-        "slot_3_4": (3, 4),
-        "slot_5_6": (5, 6),
-        "slot_7_8": (7, 8),
-        "slot_9_11": (9, 11),
+        "slot_1_2": ("01", "02"),
+        "slot_3_4": ("03", "04"),
+        "slot_5_6": ("05", "06"),
+        "slot_7_8": ("07", "08"),
+        "slot_9_11": ("09", "11"),
     }
 
     TIME_SLOT_NAMES = {
@@ -295,39 +288,98 @@ class ClassroomService:
     def __init__(self, session: requests.Session):
         self.session = session
         self.base_url = Config.SCHOOL_URL
-        self.query_url = f"{self.base_url}/jsxsd/kbxx/jsjy_query2"
+        self.query_url = f"{self.base_url}/jsxsd/kbcx/kbxx_classroom_ifr"
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Content-Type": "application/x-www-form-urlencoded",
             "Origin": self.base_url,
-            "Referer": f"{self.base_url}/jsxsd/kbxx/jsjy_query",
+            "Referer": f"{self.base_url}/jsxsd/kbcx/kbxx_classroom_ifr",
         }
+        # 所有教室列表缓存（按教学楼关键词分类）
+        self._all_classrooms_cache: Dict[str, List[str]] = {}
 
-    def query(
+    def fetch_all_classrooms(self, semester: str, building_keyword: str = "") -> Tuple[bool, List[str] | str]:
+        """获取所有教室列表
+
+        通过查询空字符串条件来获取本学期所有有课的教室
+        Args:
+            semester: 学期，如 "2025-2026-1"
+            building_keyword: 教学楼关键词，如 "格物楼"
+        Returns:
+            (成功标志, 教室列表或错误信息)
+        """
+        try:
+            # 构造查询参数 - 使用较大的周次范围和时间段来获取尽可能多的教室
+            form_data = {
+                "xnxqh": semester,
+                "kbjcmsid": "94786EE0ABE2D3B2E0531E64A8C09931",
+                "skyx": "",
+                "xqid": "",
+                "jzwid": "",
+                "skjsid": "",
+                "skjs": building_keyword,  # 教学楼关键词搜索
+                "zc1": "1",
+                "zc2": "18",  # 查询整个学期
+                "skxq1": "1",
+                "skxq2": "7",  # 周一到周日
+                "jc1": "01",
+                "jc2": "11",  # 全天
+            }
+
+            response = self.session.post(
+                self.query_url, data=form_data, headers=self.headers, timeout=30
+            )
+
+            if response.status_code != 200:
+                return False, f"请求失败，状态码: {response.status_code}"
+
+            if self._is_login_expired(response.text):
+                return False, "登录已过期"
+
+            classrooms = self._extract_classrooms_from_table(response.text)
+            return True, classrooms
+
+        except requests.RequestException as e:
+            return False, f"网络错误: {str(e)}"
+        except Exception as e:
+            return False, f"系统错误: {str(e)}"
+
+    def query_busy_classrooms(
         self,
         semester: str,
-        building_name: str,
+        building_keyword: str,
         week: int,
         weekday: int,
-        start_section: int,
-        end_section: int,
+        start_section: str,
+        end_section: str,
     ) -> Tuple[bool, List[str] | str]:
-        """查询空闲教室"""
+        """查询有课（忙碌）的教室
+
+        Args:
+            semester: 学期，如 "2025-2026-1"
+            building_keyword: 教学楼关键词，如 "格物楼B10"
+            week: 周次
+            weekday: 星期几 (1-7)
+            start_section: 起始节次，如 "01"
+            end_section: 结束节次，如 "04"
+        Returns:
+            (成功标志, 有课教室列表或错误信息)
+        """
         try:
             form_data = {
-                "typewhere": "jszq",
                 "xnxqh": semester,
-                "gnq_mh": "",
-                "jsmc_mh": building_name,
-                "bjfh": "=",
-                "jszt": "8",
-                "zc": str(week),
-                "zc2": str(week),
-                "xq": str(weekday),
-                "xq2": str(weekday),
-                "jc": str(start_section),
-                "jc2": str(end_section),
                 "kbjcmsid": "94786EE0ABE2D3B2E0531E64A8C09931",
+                "skyx": "",
+                "xqid": "",
+                "jzwid": "",
+                "skjsid": "",
+                "skjs": building_keyword,
+                "zc1": str(week),
+                "zc2": str(week),
+                "skxq1": str(weekday),
+                "skxq2": str(weekday),
+                "jc1": start_section,
+                "jc2": end_section,
             }
 
             response = self.session.post(
@@ -340,7 +392,7 @@ class ClassroomService:
             if self._is_login_expired(response.text):
                 return False, "登录已过期"
 
-            classrooms = self._extract_classrooms(response.text)
+            classrooms = self._extract_classrooms_from_table(response.text)
             return True, classrooms
 
         except requests.RequestException as e:
@@ -353,31 +405,105 @@ class ClassroomService:
         expired_keywords = ["请先登录", "登录超时", "会话已过期", "重新登录", "login", "Login"]
         return any(keyword in response_text for keyword in expired_keywords)
 
-    def _extract_classrooms(self, html_content: str) -> List[str]:
-        """从 HTML 中提取教室列表"""
+    def _extract_classrooms_from_table(self, html_content: str) -> List[str]:
+        """从 HTML 表格中提取教室列表
+
+        教室名在表格的第一列（tbody 中的 tr > td:first-child）
+        例如：<td height="28" align="center"><nobr>格物楼B108</nobr></td>
+        """
         soup = BeautifulSoup(html_content, "html.parser")
         classroom_list = []
 
-        checkboxes = soup.find_all("input", {"name": "jsids"})
-        for box in checkboxes:
-            td = box.parent
-            if td:
-                full_text = td.get_text(strip=True)
-                clean_name = re.sub(r"\(.*?\)|（.*?）", "", full_text)
-                clean_name = clean_name.strip()
-                if clean_name:
-                    classroom_list.append(clean_name)
+        # 找到课表表格
+        table = soup.find("table", id="kbtable")
+        if not table:
+            return classroom_list
+
+        # 遍历所有数据行（跳过表头）
+        rows = table.find_all("tr")
+        for row in rows:
+            # 获取第一个 td
+            first_td = row.find("td")
+            if first_td:
+                # 获取 nobr 标签内的文本，或直接获取 td 文本
+                nobr = first_td.find("nobr")
+                if nobr:
+                    classroom_name = nobr.get_text(strip=True)
+                else:
+                    classroom_name = first_td.get_text(strip=True)
+
+                # 过滤掉表头和无效数据
+                if classroom_name and classroom_name != "教室\\节次" and not classroom_name.startswith("教室"):
+                    classroom_list.append(classroom_name)
 
         return classroom_list
 
+    def query_empty_classrooms(
+        self,
+        semester: str,
+        all_classrooms: List[str],
+        week: int,
+        weekday: int,
+        start_section: str,
+        end_section: str,
+        keyword: str = "",
+    ) -> Tuple[bool, List[str] | str]:
+        """查询空教室
+
+        空教室 = 所有教室 - 有课教室
+
+        Args:
+            semester: 学期
+            all_classrooms: 所有教室列表
+            week: 周次
+            weekday: 星期几
+            start_section: 起始节次
+            end_section: 结束节次
+            keyword: 搜索关键词（教学楼名等）
+        Returns:
+            (成功标志, 空教室列表或错误信息)
+        """
+        # 查询有课的教室
+        success, busy_classrooms = self.query_busy_classrooms(
+            semester, keyword, week, weekday, start_section, end_section
+        )
+
+        if not success:
+            return False, busy_classrooms
+
+        # 计算空教室 = 总教室 - 有课教室
+        busy_set = set(busy_classrooms)
+
+        # 如果有关键词，先过滤总列表
+        if keyword:
+            filtered_all = [c for c in all_classrooms if keyword in c]
+        else:
+            filtered_all = all_classrooms
+
+        empty_classrooms = [c for c in filtered_all if c not in busy_set]
+
+        return True, empty_classrooms
+
     def query_all_slots(
-        self, semester: str, week: int, weekday: int
+        self, semester: str, all_classrooms: List[str], week: int, weekday: int, keyword: str = ""
     ) -> Dict[str, List[str]]:
-        """查询所有时间段的空教室"""
+        """查询所有时间段的空教室
+
+        Args:
+            semester: 学期
+            all_classrooms: 所有教室列表
+            week: 周次
+            weekday: 星期几
+            keyword: 搜索关键词
+        Returns:
+            各时间段的空教室字典
+        """
         result = {slot: [] for slot in self.TIME_SLOTS}
 
         for slot_key, (start, end) in self.TIME_SLOTS.items():
-            success, classrooms = self.query(semester, "", week, weekday, start, end)
+            success, classrooms = self.query_empty_classrooms(
+                semester, all_classrooms, week, weekday, start, end, keyword
+            )
             if success:
                 result[slot_key] = classrooms
 
@@ -430,15 +556,23 @@ class DateService:
 
 
 class EmptyClassroomQueryService:
-    """空教室查询主服务 - 整合所有服务"""
+    """空教室查询主服务 - 整合所有服务
+
+    新逻辑说明：
+    1. 初始化时登录并获取学期信息和所有教室列表
+    2. 前端传入参数：教学楼名称、开始节次、结束节次、日期偏移
+    3. 后端计算目标日期的周次和星期几
+    4. 查询指定条件的有课教室，计算空教室
+    """
 
     def __init__(self):
         self.session: Optional[requests.Session] = None
         self.semester: Optional[str] = None
         self.current_week: Optional[int] = None
+        self.all_classrooms: List[str] = []  # 所有教室列表缓存
 
     def initialize(self) -> Tuple[bool, str]:
-        """初始化服务（登录 + 获取学期信息）"""
+        """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）"""
         # 验证配置
         valid, msg = Config.validate()
         if not valid:
@@ -460,50 +594,97 @@ class EmptyClassroomQueryService:
         self.semester = result["semester"]
         self.current_week = result["week"]
 
+        # 获取所有教室列表（查询整学期有课的教室作为基准）
+        print("[数据] 正在获取所有教室列表...")
+        classroom_service = ClassroomService(self.session)
+
+        # 不传教学楼参数，获取所有教室
+        success, rooms = classroom_service.fetch_all_classrooms(self.semester, "")
+        if success:
+            self.all_classrooms = rooms
+            print(f"[数据] 共获取到 {len(self.all_classrooms)} 个教室")
+        else:
+            print(f"[警告] 获取教室列表失败: {rooms}")
+            self.all_classrooms = []
+
         return True, "初始化成功"
 
-    def query_tomorrow(self) -> Tuple[bool, Dict | str]:
-        """查询明天的空教室"""
+    def ensure_initialized(self) -> Tuple[bool, str]:
+        """确保服务已初始化"""
         if not self.session or not self.semester:
-            success, msg = self.initialize()
-            if not success:
-                return False, msg
+            return self.initialize()
+        return True, "已初始化"
 
-        # 计算明天的周次和星期
-        tomorrow = DateService.get_tomorrow()
+    def query(
+        self,
+        building_keyword: str,
+        start_section: str,
+        end_section: str,
+        day_offset: int = 0,
+    ) -> Tuple[bool, Dict | str]:
+        """查询空教室
+
+        Args:
+            building_keyword: 教学楼关键词，如 "格物楼B10"
+            start_section: 开始节次，如 "01", "03", "05" 等
+            end_section: 结束节次，如 "02", "04", "06" 等
+            day_offset: 日期偏移，0=今天，1=明天，-1=昨天
+        Returns:
+            (成功标志, 结果数据或错误信息)
+        """
+        # 确保已初始化
+        success, msg = self.ensure_initialized()
+        if not success:
+            return False, msg
+
+        # 计算目标日期的周次和星期
+        target_date = datetime.now() + timedelta(days=day_offset)
         target_week, target_weekday = DateService.calculate_week_and_weekday(
-            tomorrow, self.current_week
+            target_date, self.current_week
         )
+
+        # 过滤出匹配关键词的教室作为基准
+        if building_keyword:
+            base_classrooms = [c for c in self.all_classrooms if building_keyword in c]
+        else:
+            base_classrooms = self.all_classrooms
 
         # 查询空教室
         classroom_service = ClassroomService(self.session)
-        all_classrooms = classroom_service.query_all_slots(
-            self.semester, target_week, target_weekday
+        success, result = classroom_service.query_empty_classrooms(
+            self.semester,
+            base_classrooms,
+            target_week,
+            target_weekday,
+            start_section,
+            end_section,
+            building_keyword,
         )
 
-        # 按教学楼过滤
-        buildings = Config.get_buildings()
-        filtered_data = classroom_service.filter_by_buildings(all_classrooms, buildings)
+        if not success:
+            return False, result
 
-        # 构建返回数据
         weekday_name = DateService.WEEKDAY_NAMES[target_weekday - 1]
 
         return True, {
-            "date": tomorrow.strftime("%Y-%m-%d"),
+            "date": target_date.strftime("%Y-%m-%d"),
             "weekday": target_weekday,
             "weekday_name": weekday_name,
             "semester": self.semester,
             "week": target_week,
-            "buildings": [
-                {
-                    "name": building,
-                    "slot_1_2": sorted(data.get("slot_1_2", [])),
-                    "slot_3_4": sorted(data.get("slot_3_4", [])),
-                    "slot_5_6": sorted(data.get("slot_5_6", [])),
-                    "slot_7_8": sorted(data.get("slot_7_8", [])),
-                    "slot_9_11": sorted(data.get("slot_9_11", [])),
-                }
-                for building, data in filtered_data.items()
-            ],
+            "start_section": start_section,
+            "end_section": end_section,
+            "building_keyword": building_keyword,
+            "empty_classrooms": sorted(result),
+            "total_count": len(result),
             "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+    def get_info(self) -> Dict:
+        """获取当前服务状态信息"""
+        return {
+            "initialized": self.session is not None,
+            "semester": self.semester,
+            "current_week": self.current_week,
+            "total_classrooms": len(self.all_classrooms),
         }
