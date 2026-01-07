@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>我爱学习</title>
+    <script charset="UTF-8" id="LA_COLLECT" src="//sdk.51.la/js-sdk-pro.min.js"></script>
+    <script>LA.init({ id: "3HxQRMoHKBJizCgs", ck: "3HxQRMoHKBJizCgs", autoTrack: true, hashMode: true, screenRecord: true })</script>
     <!-- Element Plus CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
-    <!-- Element Plus Icons -->
-    <link rel="stylesheet" href="https://unpkg.com/@element-plus/icons-vue" />
+    <link rel="stylesheet" href="/static/css/element-plus.css" />
     <style>
         :root {
             /* 主色 - 曲奇棕 */
@@ -51,9 +52,9 @@
             --radius-full: 9999px;
 
             /* 阴影 */
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 
             /* 动画 */
             --duration-fast: 150ms;
@@ -396,6 +397,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="app" v-cloak>
         <!-- 顶部导航 -->
@@ -403,7 +405,9 @@
             <div class="header-content">
                 <div class="logo">
                     <div class="logo-icon">
-                        <el-icon><school></school></el-icon>
+                        <el-icon>
+                            <school></school>
+                        </el-icon>
                     </div>
                     <span class="logo-text">我爱学习</span>
                 </div>
@@ -414,30 +418,32 @@
 
         <!-- 主内容区 -->
         <main class="main-content">
+            <!-- 公告提示 -->
+            <el-alert
+                title="请勿在公开社交平台、论坛等传播此网站"
+                type="warning"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 16px;">
+            </el-alert>
+
             <!-- 查询表单 -->
             <div class="query-card">
                 <div class="query-card__title">
-                    <el-icon><search></search></el-icon>
+                    <el-icon>
+                        <search></search>
+                    </el-icon>
                     查询条件
                 </div>
                 <!-- 模式提示 -->
-                <el-alert
-                    v-if="modeInfo"
-                    :title="modeInfo.mode_description"
-                    :type="modeInfo.is_advanced_mode ? 'success' : 'info'"
-                    :closable="false"
-                    show-icon
-                    style="margin-bottom: 16px;"
-                ></el-alert>
+                <el-alert v-if="modeInfo" :title="modeInfo.mode_description"
+                    :type="modeInfo.is_advanced_mode ? 'success' : 'info'" :closable="false" show-icon
+                    style="margin-bottom: 16px;"></el-alert>
                 <div class="query-form">
                     <div class="form-item">
                         <span class="form-item__label">教学楼关键词</span>
-                        <el-input
-                            v-model="queryForm.building"
-                            placeholder="如：格物楼B10"
-                            clearable
-                            @keyup.enter="handleQuery"
-                        ></el-input>
+                        <el-input v-model="queryForm.building" placeholder="如：格物楼B10" clearable
+                            @keyup.enter="handleQuery"></el-input>
                     </div>
                     <div class="form-item">
                         <span class="form-item__label">开始节次</span>
@@ -474,38 +480,20 @@
                     <div class="form-item">
                         <span class="form-item__label">日期偏移（天）</span>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <el-button
-                                :icon="Minus"
-                                circle
-                                size="small"
-                                @click="queryForm.dayOffset--"
-                            ></el-button>
-                            <el-input-number
-                                v-model="queryForm.dayOffset"
-                                :min="-30"
-                                :max="30"
-                                :controls="false"
-                                style="width: 80px;"
-                            ></el-input-number>
-                            <el-button
-                                :icon="Plus"
-                                circle
-                                size="small"
-                                @click="queryForm.dayOffset++"
-                            ></el-button>
+                            <el-button :icon="Minus" circle size="small" @click="queryForm.dayOffset--"></el-button>
+                            <el-input-number v-model="queryForm.dayOffset" :min="-30" :max="30" :controls="false"
+                                style="width: 80px;"></el-input-number>
+                            <el-button :icon="Plus" circle size="small" @click="queryForm.dayOffset++"></el-button>
                             <span style="color: var(--text-secondary); font-size: 13px;">
                                 {{ getDayOffsetLabel(queryForm.dayOffset) }}
                             </span>
                         </div>
                     </div>
                     <div class="query-btn-group">
-                        <el-button
-                            type="primary"
-                            size="large"
-                            :loading="loading"
-                            @click="handleQuery"
-                        >
-                            <el-icon v-if="!loading"><search></search></el-icon>
+                        <el-button type="primary" size="large" :loading="loading" @click="handleQuery">
+                            <el-icon v-if="!loading">
+                                <search></search>
+                            </el-icon>
                             {{ loading ? '查询中...' : '查询' }}
                         </el-button>
                     </div>
@@ -540,11 +528,15 @@
                         </div>
                         <div class="result-card__subtitle">
                             <span class="result-card__subtitle-item">
-                                <el-icon><calendar></calendar></el-icon>
+                                <el-icon>
+                                    <calendar></calendar>
+                                </el-icon>
                                 {{ result.semester }} 第{{ result.week }}周
                             </span>
                             <span class="result-card__subtitle-item">
-                                <el-icon><clock></clock></el-icon>
+                                <el-icon>
+                                    <clock></clock>
+                                </el-icon>
                                 {{ result.query_time }}
                             </span>
                             <span v-if="result.building_keyword" class="result-card__subtitle-item">
@@ -560,25 +552,17 @@
                 </div>
 
                 <!-- 全年无课教室提示 -->
-                <el-alert
-                    v-if="result.always_empty_count > 0"
-                    title="注意：部分教室全学期无课"
-                    description="灰色标记的教室全学期都无课，可能是非正常公共教室（如会议室、实验室等），请谨慎选择。"
-                    type="info"
-                    :closable="false"
-                    show-icon
-                    style="margin-bottom: 16px;"
-                ></el-alert>
+                <el-alert v-if="result.always_empty_count > 0" title="注意：部分教室全学期无课"
+                    description="灰色标记的教室全学期都无课，可能是非正常公共教室（如会议室、实验室等），请谨慎选择。" type="info" :closable="false" show-icon
+                    style="margin-bottom: 16px;"></el-alert>
 
                 <div v-if="result.empty_classrooms.length > 0" class="classroom-grid">
-                    <span
-                        v-for="room in result.empty_classrooms"
-                        :key="room"
+                    <span v-for="room in result.empty_classrooms" :key="room"
                         :class="['classroom-tag', { 'classroom-tag--disabled': isAlwaysEmpty(room) }]"
-                        :title="isAlwaysEmpty(room) ? '全学期无课教室，可能是非正常公共教室' : ''"
-                    >
+                        :title="isAlwaysEmpty(room) ? '全学期无课教室，可能是非正常公共教室' : ''">
                         {{ room }}
-                        <el-icon v-if="isAlwaysEmpty(room)" style="margin-left: 4px;"><warning-filled></warning-filled></el-icon>
+                        <el-icon v-if="isAlwaysEmpty(room)"
+                            style="margin-left: 4px;"><warning-filled></warning-filled></el-icon>
                     </span>
                 </div>
                 <div v-else class="empty-tip">
@@ -602,11 +586,11 @@
     </div>
 
     <!-- Vue 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="/static/js/vue.global.prod.js"></script>
     <!-- Element Plus -->
-    <script src="https://unpkg.com/element-plus"></script>
+    <script src="/static/js/element-plus.js"></script>
     <!-- Element Plus Icons -->
-    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="/static/js/element-plus-icons.js"></script>
 
     <script>
         const { createApp, ref, reactive, onMounted } = Vue;
@@ -755,4 +739,5 @@
         app.mount('#app');
     </script>
 </body>
+
 </html>

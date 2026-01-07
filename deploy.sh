@@ -39,6 +39,7 @@ UPLOAD_FILES=(
 
 UPLOAD_DIRS=(
     "templates"
+    "static"
 )
 
 # 排除的文件模式
@@ -55,7 +56,7 @@ EXCLUDE_PATTERNS=(
 
 # 默认选项
 DRY_RUN=false
-RESTART_SERVICE=false
+RESTART_SERVICE=true
 INSTALL_DEPS=false
 
 # 国内镜像源配置
@@ -70,8 +71,8 @@ cd "$SCRIPT_DIR"
 # 解析参数
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --restart|-r)
-            RESTART_SERVICE=true
+        --no-restart|-R)
+            RESTART_SERVICE=false
             shift
             ;;
         --dry-run|-n)
@@ -86,7 +87,7 @@ while [[ $# -gt 0 ]]; do
             echo "用法: $0 [选项]"
             echo ""
             echo "选项:"
-            echo "  -r, --restart       部署后通过 Supervisor 重启远程服务"
+            echo "  -R, --no-restart    部署后不重启服务（默认会重启）"
             echo "  -i, --install       在远程服务器上安装/更新依赖 (使用国内镜像源)"
             echo "  -n, --dry-run       仅显示将要执行的操作，不实际执行"
             echo "      --help          显示帮助信息"
@@ -305,8 +306,7 @@ echo -e "远程服务器: ${GREEN}$REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT${NC}"
 echo -e "部署路径:   ${GREEN}$REMOTE_PATH${NC}"
 echo ""
 
-if [ "$RESTART_SERVICE" = false ]; then
-    echo -e "${YELLOW}提示: 使用 --restart 参数可在部署后通过 Supervisor 自动重启服务${NC}"
-    echo -e "      使用 --install 参数可在远程服务器上安装依赖 (国内镜像源)"
-    echo -e "      或手动执行: supervisorctl restart $SUPERVISOR_PROCESS"
+if [ "$RESTART_SERVICE" = true ]; then
+    echo -e "${GREEN}服务已自动重启${NC}"
+    echo -e "${YELLOW}提示: 使用 --no-restart 参数可跳过重启${NC}"
 fi
