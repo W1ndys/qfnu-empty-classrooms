@@ -211,10 +211,11 @@ echo -e "${GREEN}  文件上传完成${NC}"
 # 设置远程文件权限
 echo -e "${YELLOW}[5/$TOTAL_STEPS] 设置文件权限...${NC}"
 if [ "$DRY_RUN" = false ]; then
-    ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "chmod +x $REMOTE_PATH/start.sh 2>/dev/null || true"
+    # 转换换行符 (Windows CRLF -> Linux LF) 并设置可执行权限
+    ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "cd $REMOTE_PATH && sed -i 's/\r$//' start.sh && chmod +x start.sh"
     echo -e "${GREEN}  文件权限设置完成${NC}"
 else
-    echo -e "${GREEN}  [模拟] 将设置 start.sh 为可执行${NC}"
+    echo -e "${GREEN}  [模拟] 将转换换行符并设置 start.sh 为可执行${NC}"
 fi
 
 # 安装依赖（可选）
