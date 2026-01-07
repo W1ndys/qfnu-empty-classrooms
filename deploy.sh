@@ -53,6 +53,12 @@ EXCLUDE_PATTERNS=(
 # 默认选项
 DRY_RUN=false
 RESTART_SERVICE=false
+INSTALL_DEPS=false
+
+# 国内镜像源配置
+UV_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+PIP_TRUSTED_HOST="mirrors.aliyun.com"
 
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -69,11 +75,16 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --install|-i)
+            INSTALL_DEPS=true
+            shift
+            ;;
         --help)
             echo "用法: $0 [选项]"
             echo ""
             echo "选项:"
             echo "  -r, --restart       部署后重启远程服务"
+            echo "  -i, --install       在远程服务器上安装/更新依赖 (使用国内镜像源)"
             echo "  -n, --dry-run       仅显示将要执行的操作，不实际执行"
             echo "      --help          显示帮助信息"
             exit 0
@@ -100,8 +111,14 @@ fi
 SSH_OPTS="-i $PRIVATE_KEY_PATH -p $REMOTE_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=10"
 SCP_OPTS="-i $PRIVATE_KEY_PATH -P $REMOTE_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=10"
 
+# 计算总步骤数
+TOTAL_STEPS=5
+if [ "$INSTALL_DEPS" = true ]; then
+    TOTAL_STEPS=6
+fi
+
 # 检查私钥文件
-echo -e "${YELLOW}[1/5] 检查 SSH 配置...${NC}"
+echo -e "${YELLOW}[1/$TOTAL_STEPS] 检查 SSH 配置...${NC}"
 if [ ! -f "$PRIVATE_KEY_PATH" ]; then
     echo -e "${RED}  错误: 未找到 SSH 私钥文件: $PRIVATE_KEY_PATH${NC}"
     exit 1
@@ -111,7 +128,7 @@ echo -e "${GREEN}  远程服务器: $REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT${NC}"
 echo -e "${GREEN}  远程路径: $REMOTE_PATH${NC}"
 
 # 测试 SSH 连接
-echo -e "${YELLOW}[2/5] 测试 SSH 连接...${NC}"
+echo -e "${YELLOW}[2/$TOTAL_STEPS] 测试 SSH 连接...${NC}"
 if [ "$DRY_RUN" = false ]; then
     if ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "echo '连接成功'" 2>/dev/null; then
         echo -e "${GREEN}  SSH 连接测试通过${NC}"
@@ -124,7 +141,7 @@ else
 fi
 
 # 确保远程目录存在
-echo -e "${YELLOW}[3/5] 准备远程目录...${NC}"
+echo -e "${YELLOW}[3/$TOTAL_STEPS] 准备远程目录...${NC}"
 if [ "$DRY_RUN" = false ]; then
     ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "mkdir -p $REMOTE_PATH/templates $REMOTE_PATH/logs $REMOTE_PATH/cache"
     echo -e "${GREEN}  远程目录已准备完成${NC}"
@@ -133,7 +150,7 @@ else
 fi
 
 # 上传文件
-echo -e "${YELLOW}[4/5] 上传文件...${NC}"
+echo -e "${YELLOW}[4/$TOTAL_STEPS] 上传文件...${NC}"
 
 # 构建 rsync 排除参数
 EXCLUDE_ARGS=""
@@ -192,12 +209,72 @@ fi
 echo -e "${GREEN}  文件上传完成${NC}"
 
 # 设置远程文件权限
-echo -e "${YELLOW}[5/5] 设置文件权限...${NC}"
+echo -e "${YELLOW}[5/$TOTAL_STEPS] 设置文件权限...${NC}"
 if [ "$DRY_RUN" = false ]; then
     ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "chmod +x $REMOTE_PATH/start.sh 2>/dev/null || true"
     echo -e "${GREEN}  文件权限设置完成${NC}"
 else
     echo -e "${GREEN}  [模拟] 将设置 start.sh 为可执行${NC}"
+fi
+
+# 安装依赖（可选）
+if [ "$INSTALL_DEPS" = true ]; then
+    echo -e "${YELLOW}[6/$TOTAL_STEPS] 安装依赖 (使用国内镜像源)...${NC}"
+    echo -e "${GREEN}  镜像源: $UV_INDEX_URL${NC}"
+
+    if [ "$DRY_RUN" = false ]; then
+        # 远程安装依赖的脚本
+        INSTALL_SCRIPT="
+cd $REMOTE_PATH
+
+# 检查 Python
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD=python3
+elif command -v python &> /dev/null; then
+    PYTHON_CMD=python
+else
+    echo '错误: 未找到 Python'
+    exit 1
+fi
+
+echo \"Python 版本: \\\$(\\\$PYTHON_CMD --version)\"
+
+# 创建虚拟环境（如果不存在）
+if [ ! -d '.venv' ]; then
+    echo '创建虚拟环境...'
+    \\\$PYTHON_CMD -m venv .venv
+fi
+
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 检查是否安装了 uv
+if command -v uv &> /dev/null; then
+    echo '使用 uv 安装依赖...'
+    UV_INDEX_URL=$UV_INDEX_URL uv sync
+else
+    # 尝试安装 uv
+    echo '尝试安装 uv...'
+    pip install uv -i $PIP_INDEX_URL --trusted-host $PIP_TRUSTED_HOST -q 2>/dev/null || true
+
+    if command -v uv &> /dev/null; then
+        echo '使用 uv 安装依赖...'
+        UV_INDEX_URL=$UV_INDEX_URL uv sync
+    else
+        echo '使用 pip 安装依赖...'
+        pip install -e . -i $PIP_INDEX_URL --trusted-host $PIP_TRUSTED_HOST
+    fi
+fi
+
+echo '依赖安装完成'
+"
+        ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "$INSTALL_SCRIPT"
+        echo -e "${GREEN}  远程依赖安装完成${NC}"
+    else
+        echo -e "${GREEN}  [模拟] 将在远程服务器上安装依赖${NC}"
+        echo -e "${GREEN}  [模拟] 优先使用 uv，回退到 pip${NC}"
+        echo -e "${GREEN}  [模拟] 使用镜像源: $UV_INDEX_URL${NC}"
+    fi
 fi
 
 # 重启服务（可选）
@@ -223,5 +300,6 @@ echo ""
 
 if [ "$RESTART_SERVICE" = false ]; then
     echo -e "${YELLOW}提示: 使用 --restart 参数可在部署后自动重启服务${NC}"
+    echo -e "      使用 --install 参数可在远程服务器上安装依赖 (国内镜像源)"
     echo -e "      或手动登录服务器执行: cd $REMOTE_PATH && ./start.sh"
 fi
