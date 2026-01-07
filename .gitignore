@@ -3,6 +3,7 @@
 .spec-workflow
 .claude
 output
+logs/
 
 
 # Byte-compiled / optimized / DLL files

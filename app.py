@@ -11,19 +11,22 @@
 5. 启动时预加载数据，使用缓存避免频繁请求教务系统
 """
 
-import os
+from lo
 import threading
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from user_agents import parse
+from loguru import logger
+
 
 from services import EmptyClassroomQueryService, Config
 
 app = Flask(__name__)
 
 # 修改 Jinja2 的变量定界符，避免与 Vue 冲突
-app.jinja_env.variable_start_string = '[['
-app.jinja_env.variable_end_string = ']]'
+app.jinja_env.variable_start_string = "[["
+app.jinja_env.variable_end_string = "]]"
+
 
 # 全局服务管理
 class ServiceManager:
@@ -40,7 +43,7 @@ class ServiceManager:
         """初始化服务（登录 + 获取学期信息 + 获取所有教室列表）"""
         with self.lock:
             try:
-                print("[服务] 正在初始化查询服务...")
+                logger.info("正在初始化查询服务...")
 
                 # 强制刷新时重新创建服务实例
                 if force:
@@ -52,18 +55,20 @@ class ServiceManager:
                     self.initialized = True
                     self.last_init = datetime.now()
                     self.error = None
-                    print(f"[服务] 初始化成功，时间: {self.last_init.strftime('%Y-%m-%d %H:%M:%S')}")
+                    logger.info(
+                        f"初始化成功，时间: {self.last_init.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
                     return True, result
                 else:
                     self.initialized = False
                     self.error = result
-                    print(f"[服务] 初始化失败: {result}")
+                    logger.error(f"初始化失败: {result}")
                     return False, result
 
             except Exception as e:
                 self.initialized = False
                 self.error = str(e)
-                print(f"[服务] 初始化异常: {e}")
+                logger.exception(f"初始化异常: {e}")
                 return False, str(e)
 
     def get_status(self):
@@ -72,10 +77,15 @@ class ServiceManager:
             service_info = self.query_service.get_info()
             return {
                 "initialized": self.initialized,
-                "last_init": self.last_init.strftime('%Y-%m-%d %H:%M:%S') if self.last_init else None,
+                "last_init": (
+                    self.last_init.strftime("%Y-%m-%d %H:%M:%S")
+                    if self.last_init
+                    else None
+                ),
                 "error": self.error,
-                "service_info": service_info
+                "service_info": service_info,
             }
+
 
 # 全局服务实例
 service_manager = ServiceManager()
@@ -155,30 +165,17 @@ def api_query():
         )
 
         if success:
-            return jsonify({
-                "code": 0,
-                "message": "success",
-                "data": result
-            })
+            return jsonify({"code": 0, "message": "success", "data": result})
         else:
-            return jsonify({
-                "code": 1,
-                "message": result,
-                "data": None
-            }), 500
+            return jsonify({"code": 1, "message": result, "data": None}), 500
 
     except ValueError as e:
-        return jsonify({
-            "code": 3,
-            "message": f"参数错误: {str(e)}",
-            "data": None
-        }), 400
+        return jsonify({"code": 3, "message": f"参数错误: {str(e)}", "data": None}), 400
     except Exception as e:
-        return jsonify({
-            "code": 2,
-            "message": f"服务器错误: {str(e)}",
-            "data": None
-        }), 500
+        return (
+            jsonify({"code": 2, "message": f"服务器错误: {str(e)}", "data": None}),
+            500,
+        )
 
 
 @app.route("/api/info")
@@ -186,17 +183,12 @@ def api_info():
     """API: 获取服务状态信息"""
     try:
         info = service_manager.query_service.get_info()
-        return jsonify({
-            "code": 0,
-            "message": "success",
-            "data": info
-        })
+        return jsonify({"code": 0, "message": "success", "data": info})
     except Exception as e:
-        return jsonify({
-            "code": 2,
-            "message": f"服务器错误: {str(e)}",
-            "data": None
-        }), 500
+        return (
+            jsonify({"code": 2, "message": f"服务器错误: {str(e)}", "data": None}),
+            500,
+        )
 
 
 @app.route("/api/refresh")
@@ -206,24 +198,17 @@ def api_refresh():
         success, result = service_manager.initialize(force=True)
 
         if success:
-            return jsonify({
-                "code": 0,
-                "message": "初始化成功",
-                "data": {"message": result}
-            })
+            return jsonify(
+                {"code": 0, "message": "初始化成功", "data": {"message": result}}
+            )
         else:
-            return jsonify({
-                "code": 1,
-                "message": result,
-                "data": None
-            }), 500
+            return jsonify({"code": 1, "message": result, "data": None}), 500
 
     except Exception as e:
-        return jsonify({
-            "code": 2,
-            "message": f"服务器错误: {str(e)}",
-            "data": None
-        }), 500
+        return (
+            jsonify({"code": 2, "message": f"服务器错误: {str(e)}", "data": None}),
+            500,
+        )
 
 
 @app.route("/api/health")
@@ -231,45 +216,43 @@ def api_health():
     """API: 健康检查"""
     valid, msg = Config.validate()
     status = service_manager.get_status()
-    return jsonify({
-        "status": "ok" if valid and status["initialized"] else "error",
-        "config_valid": valid,
-        "config_message": msg,
-        "service": status
-    })
+    return jsonify(
+        {
+            "status": "ok" if valid and status["initialized"] else "error",
+            "config_valid": valid,
+            "config_message": msg,
+            "service": status,
+        }
+    )
 
 
 def main():
     """启动 Flask 服务"""
-    print("=" * 50)
-    print("空教室查询 Web 服务")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("空教室查询 Web 服务")
+    logger.info("=" * 50)
 
     # 验证配置
     valid, msg = Config.validate()
     if not valid:
-        print(f"[错误] {msg}")
+        logger.error(msg)
         return 1
 
-    print(f"[配置] 账号: {Config.USERNAME[:4]}****")
+    logger.info(f"账号: {Config.USERNAME[:4]}****")
 
     # 启动时初始化服务
-    print("[启动] 正在初始化查询服务...")
+    logger.info("正在初始化查询服务...")
     success, result = service_manager.initialize()
     if success:
-        print("[启动] 服务初始化成功")
+        logger.info("服务初始化成功")
     else:
-        print(f"[警告] 服务初始化失败: {result}")
-        print("[警告] 服务将继续启动，可稍后通过 /api/refresh 重试")
+        logger.warning(f"服务初始化失败: {result}")
+        logger.warning("服务将继续启动，可稍后通过 /api/refresh 重试")
 
-    print(f"[服务] 地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")
-    print("=" * 50)
+    logger.info(f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")
+    logger.info("=" * 50)
 
-    app.run(
-        host=Config.FLASK_HOST,
-        port=Config.FLASK_PORT,
-        debug=Config.FLASK_DEBUG
-    )
+    app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)
 
     return 0
 

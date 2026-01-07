@@ -14,6 +14,7 @@ from typing import Tuple, List, Dict, Optional
 
 import requests
 from bs4 import BeautifulSoup
+from loguru import logger
 
 # 加载 .env 文件
 try:
@@ -616,16 +617,16 @@ class EmptyClassroomQueryService:
         self.current_week = result["week"]
 
         # 获取所有教室列表（查询整学期有课的教室作为基准）
-        print("[数据] 正在获取所有教室列表...")
+        logger.info("正在获取所有教室列表...")
         classroom_service = ClassroomService(self.session)
 
         # 不传教学楼参数，获取所有教室
         success, rooms = classroom_service.fetch_all_classrooms(self.semester, "")
         if success:
             self.all_classrooms = rooms
-            print(f"[数据] 共获取到 {len(self.all_classrooms)} 个教室")
+            logger.info(f"共获取到 {len(self.all_classrooms)} 个教室")
         else:
-            print(f"[警告] 获取教室列表失败: {rooms}")
+            logger.warning(f"获取教室列表失败: {rooms}")
             self.all_classrooms = []
 
         return True, "初始化成功"
