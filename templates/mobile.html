@@ -224,6 +224,18 @@
             color: white;
         }
 
+        .classroom-tag--disabled {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            border: 1px solid #d9d9d9;
+            color: #999;
+            opacity: 0.8;
+        }
+
+        .classroom-tag--disabled:active {
+            background: linear-gradient(135deg, #e8e8e8 0%, #d9d9d9 100%);
+            color: #666;
+        }
+
         .empty-tip {
             color: var(--text-tertiary);
             font-size: 13px;
@@ -427,13 +439,25 @@
 
                 <span class="result-card__count">{{ result.total_count }} 间空教室</span>
 
+                <!-- 全年无课教室提示 -->
+                <van-notice-bar
+                    v-if="result.always_empty_count > 0"
+                    color="#999"
+                    background="#f5f5f5"
+                    left-icon="info-o"
+                    wrapable
+                >
+                    灰色标记的教室全学期无课，可能是非正常公共教室，请谨慎选择
+                </van-notice-bar>
+
                 <div v-if="result.empty_classrooms.length > 0" class="classroom-grid">
                     <span
                         v-for="room in result.empty_classrooms"
                         :key="room"
-                        class="classroom-tag"
+                        :class="['classroom-tag', { 'classroom-tag--disabled': isAlwaysEmpty(room) }]"
                     >
                         {{ room }}
+                        <van-icon v-if="isAlwaysEmpty(room)" name="info-o" style="margin-left: 2px;"></van-icon>
                     </span>
                 </div>
                 <div v-else class="empty-tip">
@@ -649,6 +673,11 @@
                     fetchModeInfo();
                 });
 
+                // 判断教室是否为全年无课教室
+                const isAlwaysEmpty = (room) => {
+                    return result.value?.always_empty_classrooms?.includes(room) || false;
+                };
+
                 return {
                     loading,
                     error,
@@ -664,7 +693,8 @@
                     getDayOffsetLabel,
                     onStartConfirm,
                     onEndConfirm,
-                    handleQuery
+                    handleQuery,
+                    isAlwaysEmpty
                 };
             }
         });

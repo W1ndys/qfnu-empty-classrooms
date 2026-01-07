@@ -1304,6 +1304,8 @@ class AdvancedEmptyClassroomQueryService:
             return True, "初始化成功（使用缓存）"
 
         # 获取学期信息
+        if self.session is None:
+            return False, "Session 未初始化"
         semester_service = SemesterService(self.session)
         sem_success, sem_result = semester_service.fetch_semester_and_week()
         if not sem_success:

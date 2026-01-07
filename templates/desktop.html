@@ -273,6 +273,19 @@
             border-color: var(--primary-color);
         }
 
+        .classroom-tag--disabled {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            border-color: #d9d9d9;
+            color: #999;
+            opacity: 0.8;
+        }
+
+        .classroom-tag--disabled:hover {
+            background: linear-gradient(135deg, #e8e8e8 0%, #d9d9d9 100%);
+            color: #666;
+            border-color: #bfbfbf;
+        }
+
         .empty-tip {
             color: var(--text-tertiary);
             font-size: 14px;
@@ -546,13 +559,26 @@
                     </div>
                 </div>
 
+                <!-- 全年无课教室提示 -->
+                <el-alert
+                    v-if="result.always_empty_count > 0"
+                    title="注意：部分教室全学期无课"
+                    description="灰色标记的教室全学期都无课，可能是非正常公共教室（如会议室、实验室等），请谨慎选择。"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                    style="margin-bottom: 16px;"
+                ></el-alert>
+
                 <div v-if="result.empty_classrooms.length > 0" class="classroom-grid">
                     <span
                         v-for="room in result.empty_classrooms"
                         :key="room"
-                        class="classroom-tag"
+                        :class="['classroom-tag', { 'classroom-tag--disabled': isAlwaysEmpty(room) }]"
+                        :title="isAlwaysEmpty(room) ? '全学期无课教室，可能是非正常公共教室' : ''"
                     >
                         {{ room }}
+                        <el-icon v-if="isAlwaysEmpty(room)" style="margin-left: 4px;"><warning-filled></warning-filled></el-icon>
                     </span>
                 </div>
                 <div v-else class="empty-tip">
@@ -700,6 +726,11 @@
                     fetchModeInfo();
                 });
 
+                // 判断教室是否为全年无课教室
+                const isAlwaysEmpty = (room) => {
+                    return result.value?.always_empty_classrooms?.includes(room) || false;
+                };
+
                 return {
                     loading,
                     error,
@@ -708,6 +739,7 @@
                     modeInfo,
                     handleQuery,
                     getDayOffsetLabel,
+                    isAlwaysEmpty,
                     Plus: ElementPlusIconsVue.Plus,
                     Minus: ElementPlusIconsVue.Minus
                 };
