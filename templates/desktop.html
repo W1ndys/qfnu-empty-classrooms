@@ -407,6 +407,15 @@
                     <el-icon><search /></el-icon>
                     查询条件
                 </div>
+                <!-- 模式提示 -->
+                <el-alert
+                    v-if="modeInfo"
+                    :title="modeInfo.mode_description"
+                    :type="modeInfo.is_advanced_mode ? 'success' : 'info'"
+                    :closable="false"
+                    show-icon
+                    style="margin-bottom: 16px;"
+                />
                 <div class="query-form">
                     <div class="form-item">
                         <span class="form-item__label">教学楼关键词</span>
@@ -450,13 +459,31 @@
                         </el-select>
                     </div>
                     <div class="form-item">
-                        <span class="form-item__label">日期</span>
-                        <el-select v-model="queryForm.dayOffset" placeholder="选择日期">
-                            <el-option label="今天" :value="0" />
-                            <el-option label="明天" :value="1" />
-                            <el-option label="后天" :value="2" />
-                            <el-option label="大后天" :value="3" />
-                        </el-select>
+                        <span class="form-item__label">日期偏移（天）</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <el-button
+                                :icon="Minus"
+                                circle
+                                size="small"
+                                @click="queryForm.dayOffset--"
+                            />
+                            <el-input-number
+                                v-model="queryForm.dayOffset"
+                                :min="-30"
+                                :max="30"
+                                :controls="false"
+                                style="width: 80px;"
+                            />
+                            <el-button
+                                :icon="Plus"
+                                circle
+                                size="small"
+                                @click="queryForm.dayOffset++"
+                            />
+                            <span style="color: var(--text-secondary); font-size: 13px;">
+                                {{ getDayOffsetLabel(queryForm.dayOffset) }}
+                            </span>
+                        </div>
                     </div>
                     <div class="query-btn-group">
                         <el-button
@@ -597,6 +624,7 @@
                 const loading = ref(false);
                 const error = ref(null);
                 const result = ref(null);
+                const modeInfo = ref(null);
 
                 // 根据时间计算默认值
                 const defaults = getDefaultQueryParams();
@@ -607,6 +635,38 @@
                     endSection: defaults.endSection,
                     dayOffset: defaults.dayOffset
                 });
+
+                // 获取日期偏移的文字标签
+                const getDayOffsetLabel = (offset) => {
+                    const labels = {
+                        '-2': '前天',
+                        '-1': '昨天',
+                        '0': '今天',
+                        '1': '明天',
+                        '2': '后天',
+                        '3': '大后天'
+                    };
+                    if (labels[String(offset)]) {
+                        return labels[String(offset)];
+                    }
+                    // 计算实际日期
+                    const date = new Date();
+                    date.setDate(date.getDate() + offset);
+                    return `${date.getMonth() + 1}月${date.getDate()}日`;
+                };
+
+                // 获取模式信息
+                const fetchModeInfo = async () => {
+                    try {
+                        const response = await fetch('/api/info');
+                        const data = await response.json();
+                        if (data.code === 0) {
+                            modeInfo.value = data.data;
+                        }
+                    } catch (e) {
+                        console.error('获取模式信息失败:', e);
+                    }
+                };
 
                 const handleQuery = async () => {
                     loading.value = true;
@@ -635,12 +695,21 @@
                     }
                 };
 
+                // 页面加载时获取模式信息
+                onMounted(() => {
+                    fetchModeInfo();
+                });
+
                 return {
                     loading,
                     error,
                     result,
                     queryForm,
-                    handleQuery
+                    modeInfo,
+                    handleQuery,
+                    getDayOffsetLabel,
+                    Plus: ElementPlusIconsVue.Plus,
+                    Minus: ElementPlusIconsVue.Minus
                 };
             }
         });

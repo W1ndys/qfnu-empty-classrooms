@@ -216,6 +216,23 @@ def api_query():
         end_section = request.args.get("end_section", "02")
         day_offset = int(request.args.get("day_offset", "0"))
 
+        # 普通模式下校验周次范围（1-18周）
+        if not Config.USE_ADVANCED_API:
+            # 预计算目标周次进行校验
+            from services import DateService
+            service_info = service_manager.query_service.get_info()
+            current_week = service_info.get("current_week")
+            if current_week:
+                from datetime import timedelta
+                target_date = datetime.now() + timedelta(days=day_offset)
+                target_week, _ = DateService.calculate_week_and_weekday(target_date, current_week)
+                if target_week < 1 or target_week > 18:
+                    return jsonify({
+                        "code": 4, 
+                        "message": f"普通模式仅支持1-18周的数据查询，当前查询周次为第{target_week}周", 
+                        "data": None
+                    }), 400
+
         # 调用查询服务
         success, result = service_manager.query_service.query(
             building_keyword=building,
@@ -243,6 +260,9 @@ def api_info():
     """API: 获取服务状态信息"""
     try:
         info = service_manager.query_service.get_info()
+        # 添加模式信息
+        info["is_advanced_mode"] = Config.USE_ADVANCED_API
+        info["mode_description"] = "高级模式：支持期末周查询无考教室" if Config.USE_ADVANCED_API else "普通模式：仅支持1-18周的数据查询"
         return jsonify({"code": 0, "message": "success", "data": info})
     except Exception as e:
         return (

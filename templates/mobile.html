@@ -314,6 +314,16 @@
                     查询条件
                 </div>
 
+                <!-- 模式提示 -->
+                <van-notice-bar
+                    v-if="modeInfo"
+                    :color="modeInfo.is_advanced_mode ? '#07c160' : '#1989fa'"
+                    :background="modeInfo.is_advanced_mode ? '#ecf9ec' : '#ecf5ff'"
+                    left-icon="info-o"
+                    :text="modeInfo.mode_description"
+                    style="margin-bottom: 12px; border-radius: 8px;"
+                />
+
                 <div class="form-item">
                     <span class="form-item__label">教学楼关键词</span>
                     <van-field
@@ -346,14 +356,30 @@
                 </div>
 
                 <div class="form-item">
-                    <span class="form-item__label">日期</span>
-                    <van-field
-                        v-model="dayOffsetText"
-                        readonly
-                        is-link
-                        placeholder="选择日期"
-                        @click="showDayPicker = true"
-                    />
+                    <span class="form-item__label">日期偏移（天）</span>
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;">
+                        <van-button
+                            icon="minus"
+                            size="small"
+                            round
+                            @click="queryForm.dayOffset--"
+                        />
+                        <van-field
+                            v-model.number="queryForm.dayOffset"
+                            type="number"
+                            style="flex: 1; text-align: center;"
+                            input-align="center"
+                        />
+                        <van-button
+                            icon="plus"
+                            size="small"
+                            round
+                            @click="queryForm.dayOffset++"
+                        />
+                    </div>
+                    <div style="text-align: center; color: var(--text-secondary); font-size: 12px;">
+                        {{ getDayOffsetLabel(queryForm.dayOffset) }}
+                    </div>
                 </div>
 
                 <van-button
@@ -443,14 +469,6 @@
                 @cancel="showEndPicker = false"
             />
         </van-popup>
-
-        <van-popup v-model:show="showDayPicker" position="bottom" round>
-            <van-picker
-                :columns="dayOffsetOptions"
-                @confirm="onDayConfirm"
-                @cancel="showDayPicker = false"
-            />
-        </van-popup>
     </div>
 
     <!-- Vue 3 -->
@@ -459,7 +477,7 @@
     <script src="https://fastly.jsdelivr.net/npm/vant@4/lib/vant.min.js"></script>
 
     <script>
-        const { createApp, ref, reactive, computed } = Vue;
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
 
         // 根据当前时间计算默认的节次和日期偏移
         function getDefaultQueryParams() {
@@ -500,6 +518,7 @@
                 const loading = ref(false);
                 const error = ref(null);
                 const result = ref(null);
+                const modeInfo = ref(null);
 
                 // 根据时间计算默认值
                 const defaults = getDefaultQueryParams();
@@ -514,7 +533,6 @@
                 // 选择器显示状态
                 const showStartPicker = ref(false);
                 const showEndPicker = ref(false);
-                const showDayPicker = ref(false);
 
                 // 选项配置
                 const startSectionOptions = [
@@ -545,13 +563,6 @@
                     { text: '第11节', value: '11' }
                 ];
 
-                const dayOffsetOptions = [
-                    { text: '今天', value: 0 },
-                    { text: '明天', value: 1 },
-                    { text: '后天', value: 2 },
-                    { text: '大后天', value: 3 }
-                ];
-
                 // 显示文本
                 const startSectionText = computed(() => {
                     const item = startSectionOptions.find(i => i.value === queryForm.startSection);
@@ -563,10 +574,24 @@
                     return item ? item.text : '';
                 });
 
-                const dayOffsetText = computed(() => {
-                    const item = dayOffsetOptions.find(i => i.value === queryForm.dayOffset);
-                    return item ? item.text : '';
-                });
+                // 获取日期偏移的文字标签
+                const getDayOffsetLabel = (offset) => {
+                    const labels = {
+                        '-2': '前天',
+                        '-1': '昨天',
+                        '0': '今天',
+                        '1': '明天',
+                        '2': '后天',
+                        '3': '大后天'
+                    };
+                    if (labels[String(offset)]) {
+                        return labels[String(offset)];
+                    }
+                    // 计算实际日期
+                    const date = new Date();
+                    date.setDate(date.getDate() + offset);
+                    return `${date.getMonth() + 1}月${date.getDate()}日`;
+                };
 
                 // 选择器确认
                 const onStartConfirm = ({ selectedOptions }) => {
@@ -579,9 +604,17 @@
                     showEndPicker.value = false;
                 };
 
-                const onDayConfirm = ({ selectedOptions }) => {
-                    queryForm.dayOffset = selectedOptions[0].value;
-                    showDayPicker.value = false;
+                // 获取模式信息
+                const fetchModeInfo = async () => {
+                    try {
+                        const response = await fetch('/api/info');
+                        const data = await response.json();
+                        if (data.code === 0) {
+                            modeInfo.value = data.data;
+                        }
+                    } catch (e) {
+                        console.error('获取模式信息失败:', e);
+                    }
                 };
 
                 const handleQuery = async () => {
@@ -611,23 +644,26 @@
                     }
                 };
 
+                // 页面加载时获取模式信息
+                onMounted(() => {
+                    fetchModeInfo();
+                });
+
                 return {
                     loading,
                     error,
                     result,
                     queryForm,
+                    modeInfo,
                     showStartPicker,
                     showEndPicker,
-                    showDayPicker,
                     startSectionOptions,
                     endSectionOptions,
-                    dayOffsetOptions,
                     startSectionText,
                     endSectionText,
-                    dayOffsetText,
+                    getDayOffsetLabel,
                     onStartConfirm,
                     onEndConfirm,
-                    onDayConfirm,
                     handleQuery
                 };
             }
