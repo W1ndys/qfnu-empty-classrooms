@@ -13,6 +13,7 @@
 
 from logger import setup_logger
 import threading
+import requests as http_requests
 from datetime import datetime
 from typing import Optional
 from flask import Flask, render_template, jsonify, request, redirect, url_for
@@ -30,6 +31,42 @@ app.jinja_env.variable_end_string = "]]"
 
 # 配置日志
 setup_logger()
+
+
+def send_feishu_notification(message: str) -> bool:
+    """发送飞书通知
+
+    Args:
+        message: 通知消息内容
+
+    Returns:
+        是否发送成功
+    """
+    if not Config.FEISHU_WEBHOOK_URL:
+        logger.debug("未配置飞书 Webhook URL，跳过通知")
+        return False
+
+    try:
+        payload = {
+            "msg_type": "text",
+            "content": {
+                "text": message
+            }
+        }
+        response = http_requests.post(
+            Config.FEISHU_WEBHOOK_URL,
+            json=payload,
+            timeout=10
+        )
+        if response.status_code == 200:
+            logger.info("飞书通知发送成功")
+            return True
+        else:
+            logger.warning(f"飞书通知发送失败: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.warning(f"飞书通知发送异常: {e}")
+        return False
 
 
 # 全局服务管理
@@ -315,6 +352,17 @@ def main():
 
     logger.info(f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}")
     logger.info("=" * 50)
+
+    # 发送飞书启动通知
+    mode_str = "高级模式" if Config.USE_ADVANCED_API else "普通模式"
+    init_status = "成功" if success else "失败"
+    send_feishu_notification(
+        f"[空教室查询服务启动]\n"
+        f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"模式: {mode_str}\n"
+        f"初始化: {init_status}\n"
+        f"地址: http://{Config.FLASK_HOST}:{Config.FLASK_PORT}"
+    )
 
     try:
         app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)

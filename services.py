@@ -57,6 +57,9 @@ class Config:
     # 高级账号配置
     USE_ADVANCED_API = os.environ.get("USE_ADVANCED_API", "false").lower() == "true"
 
+    # 飞书通知配置
+    FEISHU_WEBHOOK_URL = os.environ.get("FEISHU_WEBHOOK_URL", "")
+
     @classmethod
     def validate(cls) -> Tuple[bool, str]:
         """验证配置是否完整"""
