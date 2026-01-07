@@ -17,7 +17,12 @@ NC='\033[0m' # No Color
 DEBUG_MODE=false
 HOST="0.0.0.0"
 PORT="5000"
-WORKERS=4
+THREADS=4
+
+# 国内镜像源配置
+UV_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+PIP_TRUSTED_HOST="mirrors.aliyun.com"
 
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,8 +43,8 @@ while [[ $# -gt 0 ]]; do
             PORT="$2"
             shift 2
             ;;
-        --workers|-w)
-            WORKERS="$2"
+        --threads|-t)
+            THREADS="$2"
             shift 2
             ;;
         --help)
@@ -49,7 +54,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -d, --debug         调试模式运行 (Flask 开发服务器)"
             echo "  -h, --host HOST     绑定地址 (默认: 0.0.0.0)"
             echo "  -p, --port PORT     绑定端口 (默认: 5000)"
-            echo "  -w, --workers N     gunicorn 工作进程数 (默认: 4)"
+            echo "  -t, --threads N     线程数 (默认: 4)"
             echo "      --help          显示帮助信息"
             exit 0
             ;;
@@ -94,11 +99,11 @@ fi
 # 安装/更新依赖
 echo -e "${YELLOW}[3/4] 检查依赖...${NC}"
 if command -v uv &> /dev/null; then
-    echo -e "${GREEN}  使用 uv 包管理器${NC}"
-    uv sync --quiet
+    echo -e "${GREEN}  使用 uv 包管理器 (国内镜像源)${NC}"
+    UV_INDEX_URL="$UV_INDEX_URL" uv sync --quiet
 else
-    echo -e "${YELLOW}  使用 pip 包管理器${NC}"
-    pip install -q -e .
+    echo -e "${YELLOW}  使用 pip 包管理器 (国内镜像源)${NC}"
+    pip install -q -e . -i "$PIP_INDEX_URL" --trusted-host "$PIP_TRUSTED_HOST"
 fi
 echo -e "${GREEN}  依赖安装完成${NC}"
 
@@ -124,24 +129,48 @@ if [ "$DEBUG_MODE" = true ]; then
     echo -e "${GREEN}服务地址: http://$HOST:$PORT${NC}"
     echo ""
     export FLASK_DEBUG=1
-    $PYTHON_CMD app.py
+    # 优先使用 uv run
+    if command -v uv &> /dev/null; then
+        uv run python app.py
+    else
+        .venv/bin/python app.py
+    fi
 else
     echo -e "${YELLOW}正在以生产模式启动...${NC}"
     echo -e "${GREEN}服务地址: http://$HOST:$PORT${NC}"
-    echo -e "${GREEN}工作进程数: $WORKERS${NC}"
+    echo -e "${GREEN}线程数: $THREADS${NC}"
     echo ""
 
-    # 检查 gunicorn 是否安装
-    if ! command -v gunicorn &> /dev/null; then
-        echo -e "${YELLOW}正在安装 gunicorn...${NC}"
-        pip install -q gunicorn
+    # 确保 gunicorn 安装在虚拟环境中
+    if [ ! -f ".venv/bin/gunicorn" ]; then
+        echo -e "${YELLOW}正在安装 gunicorn (国内镜像源)...${NC}"
+        if command -v uv &> /dev/null; then
+            uv pip install gunicorn --quiet
+        else
+            .venv/bin/pip install -q gunicorn -i "$PIP_INDEX_URL" --trusted-host "$PIP_TRUSTED_HOST"
+        fi
     fi
 
-    exec gunicorn \
-        --bind "$HOST:$PORT" \
-        --workers "$WORKERS" \
-        --access-logfile - \
-        --error-logfile - \
-        --capture-output \
-        "app:app"
+    # 使用虚拟环境中的 gunicorn (单进程多线程模式)
+    if command -v uv &> /dev/null; then
+        exec uv run gunicorn \
+            --bind "$HOST:$PORT" \
+            --workers 1 \
+            --threads "$THREADS" \
+            --worker-class gthread \
+            --access-logfile - \
+            --error-logfile - \
+            --capture-output \
+            "app:app"
+    else
+        exec .venv/bin/gunicorn \
+            --bind "$HOST:$PORT" \
+            --workers 1 \
+            --threads "$THREADS" \
+            --worker-class gthread \
+            --access-logfile - \
+            --error-logfile - \
+            --capture-output \
+            "app:app"
+    fi
 fi
