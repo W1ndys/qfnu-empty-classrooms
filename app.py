@@ -22,8 +22,13 @@ from loguru import logger
 
 
 from services import EmptyClassroomQueryService, AdvancedEmptyClassroomQueryService, Config
+from database import init_db, get_announcements
+from admin.decorators import frontend_auth_required
 
 app = Flask(__name__)
+
+# 配置 Session
+app.secret_key = Config.SECRET_KEY
 
 # 修改 Jinja2 的变量定界符，避免与 Vue 冲突
 app.jinja_env.variable_start_string = "[["
@@ -31,6 +36,15 @@ app.jinja_env.variable_end_string = "]]"
 
 # 配置日志
 setup_logger()
+
+# 初始化数据库
+init_db()
+
+# 注册 Blueprint
+from admin import admin_bp
+from auth import auth_bp
+app.register_blueprint(admin_bp)
+app.register_blueprint(auth_bp)
 
 
 def send_feishu_notification(message: str) -> bool:
@@ -249,6 +263,7 @@ def is_mobile(user_agent_string: str) -> bool:
 
 
 @app.route("/")
+@frontend_auth_required
 def index():
     """根据设备类型自动路由到对应页面"""
     user_agent = request.headers.get("User-Agent", "")
@@ -260,18 +275,21 @@ def index():
 
 
 @app.route("/desktop")
+@frontend_auth_required
 def desktop():
     """PC 端页面 - Element Plus"""
     return render_template("desktop.html")
 
 
 @app.route("/mobile")
+@frontend_auth_required
 def mobile():
     """移动端页面 - Vant"""
     return render_template("mobile.html")
 
 
 @app.route("/api/query")
+@frontend_auth_required
 def api_query():
     """API: 实时查询空教室
 
@@ -349,6 +367,7 @@ def api_query():
 
 
 @app.route("/api/info")
+@frontend_auth_required
 def api_info():
     """API: 获取服务状态信息"""
     try:
@@ -377,6 +396,19 @@ def api_health():
             "service": status,
         }
     )
+
+
+@app.route("/api/announcements")
+def api_announcements():
+    """API: 获取公告列表（公开接口）"""
+    try:
+        announcements = get_announcements(active_only=True)
+        return jsonify({"code": 0, "message": "success", "data": announcements})
+    except Exception as e:
+        return (
+            jsonify({"code": 2, "message": f"服务器错误: {str(e)}", "data": None}),
+            500,
+        )
 
 
 def main():

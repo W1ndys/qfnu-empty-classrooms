@@ -60,6 +60,12 @@ class Config:
     # 飞书通知配置
     FEISHU_WEBHOOK_URL = os.environ.get("FEISHU_WEBHOOK_URL", "")
 
+    # 安全配置
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+    ENABLE_FRONTEND_AUTH = os.environ.get("ENABLE_FRONTEND_AUTH", "false").lower() == "true"
+    FRONTEND_PASSWORD = os.environ.get("FRONTEND_PASSWORD", "")
+
     @classmethod
     def validate(cls) -> Tuple[bool, str]:
         """验证配置是否完整"""
@@ -1222,7 +1228,7 @@ class AdvancedEmptyClassroomQueryService:
         self._always_empty_loaded: bool = False
 
     def _load_cache(self) -> bool:
-        """从缓存文件加载学期信息"""
+        """从缓存文件加载学期信息和全年无课教室"""
         try:
             if not Config.CACHE_FILE.exists():
                 logger.info("缓存文件不存在")
@@ -1242,6 +1248,13 @@ class AdvancedEmptyClassroomQueryService:
             if last_refresh_str:
                 self.last_refresh = datetime.fromisoformat(last_refresh_str)
 
+            # 加载全年无课教室缓存
+            always_empty_list = cache_data.get("always_empty_classrooms", [])
+            if always_empty_list:
+                self._always_empty_classrooms = set(always_empty_list)
+                self._always_empty_loaded = True
+                logger.info(f"从缓存恢复全年无课教室: {len(self._always_empty_classrooms)} 个")
+
             if self.semester and self.current_week:
                 logger.info(
                     f"从缓存恢复学期信息: 学期={self.semester}, 周次={self.current_week}"
@@ -1259,7 +1272,7 @@ class AdvancedEmptyClassroomQueryService:
             return False
 
     def _save_cache(self) -> bool:
-        """保存学期信息到缓存文件"""
+        """保存学期信息和全年无课教室到缓存文件"""
         try:
             Config.ensure_cache_dir()
 
@@ -1269,6 +1282,8 @@ class AdvancedEmptyClassroomQueryService:
                 "all_classrooms": [],  # 高级模式不需要缓存教室列表
                 "last_refresh": self.last_refresh.isoformat() if self.last_refresh else None,
                 "saved_at": datetime.now().isoformat(),
+                # 保存全年无课教室
+                "always_empty_classrooms": sorted(list(self._always_empty_classrooms)) if self._always_empty_classrooms else [],
             }
 
             with open(Config.CACHE_FILE, "w", encoding="utf-8") as f:
@@ -1414,24 +1429,25 @@ class AdvancedEmptyClassroomQueryService:
 
     def _load_always_empty_classrooms(self) -> None:
         """加载全年无课教室
-        
+
         查询1-20周、星期一到星期日、1-11节、教室为空的条件，
         获取全年都空闲的教室列表，存储到内存中。
         这些教室可能是非正常公共教室，需要特殊标注提醒用户。
+        优先从缓存加载，缓存不存在时从服务器查询并保存到缓存。
         """
         if self._always_empty_loaded:
             logger.info("全年无课教室已加载，跳过")
             return
-            
+
         if self.session is None or self.semester is None:
             logger.warning("Session或学期信息未初始化，无法加载全年无课教室")
             return
-        
+
         logger.info("开始加载全年无课教室...")
-        
+
         try:
             advanced_service = AdvancedClassroomService(self.session)
-            
+
             # 构造请求表单数据：查询1-20周、星期一到星期日、1-11节、教室为空
             form_data = {
                 "typewhere": "jszq",
@@ -1448,34 +1464,37 @@ class AdvancedEmptyClassroomQueryService:
                 "jc2": "11",  # 结束节次
                 "kbjcmsid": "94786EE0ABE2D3B2E0531E64A8C09931",
             }
-            
+
             response = advanced_service.session.post(
                 advanced_service.QUERY_URL,
                 data=form_data,
                 headers=advanced_service.headers,
                 timeout=60,  # 全年查询可能较慢，增加超时时间
             )
-            
+
             if response.status_code != 200:
                 logger.error(f"加载全年无课教室失败，状态码: {response.status_code}")
                 return
-            
+
             # 检测登录是否过期
             login_expired_keywords = ["请输入账号", "请输入密码", "用户登录", "LoginToXk"]
             for keyword in login_expired_keywords:
                 if keyword in response.text:
                     logger.warning(f"加载全年无课教室时检测到登录过期: {keyword}")
                     return
-            
+
             # 解析响应HTML，提取教室列表
             classrooms = advanced_service._extract_classrooms(response.text)
             self._always_empty_classrooms = set(classrooms)
             self._always_empty_loaded = True
-            
+
             logger.info(f"全年无课教室加载完成，共 {len(self._always_empty_classrooms)} 个教室")
             if self._always_empty_classrooms:
                 logger.debug(f"全年无课教室列表: {sorted(self._always_empty_classrooms)}")
-                
+
+            # 保存到缓存
+            self._save_cache()
+
         except requests.RequestException as e:
             logger.error(f"加载全年无课教室网络请求错误: {e}")
         except Exception as e:

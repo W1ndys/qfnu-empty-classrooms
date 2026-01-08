@@ -319,6 +319,17 @@
 
         <!-- 页面内容 -->
         <div class="page-content">
+            <!-- 系统公告 -->
+            <van-notice-bar
+                v-for="announcement in announcements"
+                :key="announcement.id"
+                :color="getAnnouncementColor(announcement.type)"
+                :background="getAnnouncementBg(announcement.type)"
+                left-icon="volume-o"
+                :text="announcement.title + '：' + announcement.content"
+                style="margin-bottom: 8px; border-radius: 8px;">
+            </van-notice-bar>
+
             <!-- 公告提示 -->
             <van-notice-bar
                 color="#ed6a0c"
@@ -500,6 +511,7 @@
                 const error = ref(null);
                 const result = ref(null);
                 const modeInfo = ref(null);
+                const announcements = ref([]);
 
                 // 根据时间计算默认值
                 const defaults = getDefaultQueryParams();
@@ -598,6 +610,40 @@
                     }
                 };
 
+                // 获取公告列表
+                const fetchAnnouncements = async () => {
+                    try {
+                        const response = await fetch('/api/announcements');
+                        const data = await response.json();
+                        if (data.code === 0) {
+                            announcements.value = data.data || [];
+                        }
+                    } catch (e) {
+                        console.error('获取公告失败:', e);
+                    }
+                };
+
+                // 公告颜色配置
+                const getAnnouncementColor = (type) => {
+                    const colors = {
+                        info: '#1989fa',
+                        success: '#07c160',
+                        warning: '#ed6a0c',
+                        error: '#ee0a24'
+                    };
+                    return colors[type] || colors.info;
+                };
+
+                const getAnnouncementBg = (type) => {
+                    const bgs = {
+                        info: '#ecf5ff',
+                        success: '#ecf9ec',
+                        warning: '#fffbe8',
+                        error: '#ffece8'
+                    };
+                    return bgs[type] || bgs.info;
+                };
+
                 const handleQuery = async () => {
                     loading.value = true;
                     error.value = null;
@@ -625,9 +671,10 @@
                     }
                 };
 
-                // 页面加载时获取模式信息
+                // 页面加载时获取模式信息和公告
                 onMounted(() => {
                     fetchModeInfo();
+                    fetchAnnouncements();
                 });
 
                 // 判断教室是否为全年无课教室
@@ -641,6 +688,7 @@
                     result,
                     queryForm,
                     modeInfo,
+                    announcements,
                     showStartPicker,
                     showEndPicker,
                     startSectionOptions,
@@ -651,7 +699,9 @@
                     onStartConfirm,
                     onEndConfirm,
                     handleQuery,
-                    isAlwaysEmpty
+                    isAlwaysEmpty,
+                    getAnnouncementColor,
+                    getAnnouncementBg
                 };
             }
         });

@@ -418,6 +418,18 @@
 
         <!-- 主内容区 -->
         <main class="main-content">
+            <!-- 系统公告 -->
+            <el-alert
+                v-for="announcement in announcements"
+                :key="announcement.id"
+                :title="announcement.title"
+                :description="announcement.content"
+                :type="announcement.type"
+                :closable="true"
+                show-icon
+                style="margin-bottom: 12px;">
+            </el-alert>
+
             <!-- 公告提示 -->
             <el-alert
                 title="请勿在公开社交平台、论坛等传播此网站"
@@ -635,6 +647,7 @@
                 const error = ref(null);
                 const result = ref(null);
                 const modeInfo = ref(null);
+                const announcements = ref([]);
 
                 // 根据时间计算默认值
                 const defaults = getDefaultQueryParams();
@@ -678,6 +691,19 @@
                     }
                 };
 
+                // 获取公告列表
+                const fetchAnnouncements = async () => {
+                    try {
+                        const response = await fetch('/api/announcements');
+                        const data = await response.json();
+                        if (data.code === 0) {
+                            announcements.value = data.data || [];
+                        }
+                    } catch (e) {
+                        console.error('获取公告失败:', e);
+                    }
+                };
+
                 const handleQuery = async () => {
                     loading.value = true;
                     error.value = null;
@@ -705,9 +731,10 @@
                     }
                 };
 
-                // 页面加载时获取模式信息
+                // 页面加载时获取模式信息和公告
                 onMounted(() => {
                     fetchModeInfo();
+                    fetchAnnouncements();
                 });
 
                 // 判断教室是否为全年无课教室
@@ -721,6 +748,7 @@
                     result,
                     queryForm,
                     modeInfo,
+                    announcements,
                     handleQuery,
                     getDayOffsetLabel,
                     isAlwaysEmpty,
