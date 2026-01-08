@@ -20,11 +20,13 @@ REMOTE_PORT="58089"
 REMOTE_USER="root"
 REMOTE_PATH="/root/qfnu-empty-classrooms"
 
+# SSH 私钥文件路径 (Git Bash 格式)
+PRIVATE_KEY_PATH="/c/Users/W1ndys/.ssh/id_rsa"
+
 # Supervisor 进程名称
 SUPERVISOR_PROCESS="qfnu-empty-classrooms:qfnu-empty-classrooms_00"
 
-# SSH 私钥文件路径 (Git Bash 格式)
-PRIVATE_KEY_PATH="/c/Users/W1ndys/.ssh/id_rsa"
+
 
 # 需要上传的文件和目录
 UPLOAD_FILES=(
