@@ -32,6 +32,7 @@ SUPERVISOR_PROCESS="qfnu-empty-classrooms:qfnu-empty-classrooms_00"
 UPLOAD_FILES=(
     "app.py"
     "services.py"
+    "database.py"
     "logger.py"
     "pyproject.toml"
     "uv.lock"
@@ -42,6 +43,8 @@ UPLOAD_FILES=(
 UPLOAD_DIRS=(
     "templates"
     "static"
+    "admin"
+    "auth"
 )
 
 # 排除的文件模式
