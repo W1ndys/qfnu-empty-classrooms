@@ -2,56 +2,99 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
+	v1 "github.com/W1ndys/qfnu-cas-go/internal/api/v1"
+	"github.com/W1ndys/qfnu-cas-go/internal/service"
 	"github.com/W1ndys/qfnu-cas-go/pkg/cas"
+	"github.com/W1ndys/qfnu-cas-go/web"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	// 尝试加载 .env 文件（如果存在）
+	// 加载 .env
 	_ = godotenv.Load()
 
-	// 优先从环境变量读取
-	username := os.Getenv("QFNU_USERNAME")
-	password := os.Getenv("QFNU_PASSWORD")
+	// 1. 初始化 CAS 客户端
+	// 注意：实际生产环境需要配置账号密码，用于获取 Session
+	username := os.Getenv("QFNU_USER")
+	password := os.Getenv("QFNU_PASS")
 
-	// CLI 参数作为备选
-	flag.StringVar(&username, "u", username, "学号/工号（默认读取 QFNU_USERNAME 环境变量）")
-	flag.StringVar(&password, "p", password, "密码（默认读取 QFNU_PASSWORD 环境变量）")
-	timeout := flag.Duration("t", 30*time.Second, "请求超时时间")
-	flag.Parse()
+	// 兼容 main.go 原有逻辑，也尝试读取 QFNU_USERNAME/PASSWORD
+	if username == "" {
+		username = os.Getenv("QFNU_USERNAME")
+	}
+	if password == "" {
+		password = os.Getenv("QFNU_PASSWORD")
+	}
 
 	if username == "" || password == "" {
-		log.Println("错误: 未配置账号或密码")
-		log.Println("\n配置方式（优先级从高到低）:")
-		log.Println("1. 环境变量: export QFNU_USERNAME=学号 QFNU_PASSWORD=密码")
-		log.Println("2. .env 文件: 创建 .env 文件并填写 QFNU_USERNAME 和 QFNU_PASSWORD")
-		log.Println("3. CLI 参数: go run . -u 学号 -p 密码")
-		os.Exit(1)
+		log.Println("WARNING: QFNU_USER/QFNU_PASS not set. Backend queries will likely fail due to lack of session.")
 	}
 
-	ctx := context.Background()
-
-	// 初始化客户端
-	client, err := cas.NewClient(cas.WithTimeout(*timeout))
+	client, err := cas.NewClient(cas.WithTimeout(30 * time.Second))
 	if err != nil {
-		log.Fatalf("初始化客户端失败: %v", err)
+		log.Fatalf("Failed to create cas client: %v", err)
 	}
 
-	log.Printf("正在尝试登录用户: %s ...\n", username)
-
-	// 执行登录
-	startTime := time.Now()
-	if err := client.Login(ctx, username, password); err != nil {
-		log.Fatalf("登录失败: %v", err)
+	// 尝试登录以获取 Session
+	if username != "" {
+		log.Println("Attempting to login to QFNU CAS...")
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		err := client.Login(ctx, username, password)
+		cancel()
+		if err != nil {
+			log.Printf("Login failed: %v. Continuing, but queries may fail.", err)
+		} else {
+			log.Println("Login successful.")
+		}
 	}
-	duration := time.Since(startTime)
 
-	log.Printf("登录成功! 耗时: %v\n", duration)
-	log.Println("Session Cookie 已建立，可进行后续操作。")
-	log.Println("提示: 可使用 client.GetClient() 进行后续教务系统 API 调用")
+	// 2. 初始化服务
+	if err := service.InitCalendarService(client); err != nil {
+		log.Printf("Failed to init calendar service: %v. Calendar features may be inaccurate.", err)
+	}
+	classroomService := service.NewClassroomService(client)
+	apiHandler := v1.NewHandler(classroomService)
+
+	// 3. 设置 Gin
+	r := gin.Default()
+	// 禁用 Gin 的自动重定向行为，防止 index.html 路径与 / 路径发生死循环
+	r.RedirectTrailingSlash = false
+	r.RedirectFixedPath = false
+
+	// 静态文件服务 (Embed)
+	// web.StaticFS 根目录下就是 index.html 和 css/
+	r.StaticFS("/static", http.FS(web.StaticFS))
+
+	// 根路径返回 index.html (显式读取模式)
+	// 使用 ReadFile 显式加载并返回，避免 FileFromFS 可能触发的路径重定向问题
+	r.GET("/", func(c *gin.Context) {
+		content, err := web.StaticFS.ReadFile("index.html")
+		if err != nil {
+			c.String(http.StatusInternalServerError, "无法加载 index.html")
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+	})
+
+	// API 路由
+	api := r.Group("/api/v1")
+	{
+		api.POST("/query", apiHandler.QueryClassrooms)
+	}
+
+	// 启动
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Server starting on http://localhost:%s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }

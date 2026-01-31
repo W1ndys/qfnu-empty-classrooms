@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>QFNU 空教室查询</title>
+    <!-- Compiled Tailwind CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body class="bg-[var(--color-bg-page)] text-[#1C1C1E] font-sans antialiased pb-10" x-data="app()">
+
+    <!-- Header -->
+    <header
+        class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200 px-4 pt-[env(safe-area-inset-top)]">
+        <div class="h-14 flex items-center justify-center relative">
+            <h1 class="text-lg font-semibold">QFNU 空教室</h1>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="px-4 py-4 space-y-4 max-w-xl mx-auto">
+
+        <!-- Search Form Card -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+
+            <!-- Building Input -->
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1.5 ml-1">教学楼</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </span>
+                    <input type="text" x-model="form.building"
+                        class="w-full bg-[#E5E5EA] rounded-xl py-3 pl-10 pr-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#885021]/20 transition-all"
+                        placeholder="例如：老文史楼">
+                </div>
+            </div>
+
+            <!-- Date Selection (Segmented Control) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1.5 ml-1">日期</label>
+                <div class="bg-[#E5E5EA] p-1 rounded-xl flex">
+                    <template x-for="(label, offset) in ['今天', '明天', '后天']">
+                        <button @click="form.offset = offset"
+                            :class="form.offset === offset ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                            class="flex-1 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200"
+                            x-text="label"></button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Class Nodes -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1.5 ml-1">起始节次</label>
+                    <select x-model="form.start"
+                        class="w-full bg-[#E5E5EA] rounded-xl py-3 px-4 text-[15px] appearance-none focus:outline-none">
+                        <template x-for="i in 11">
+                            <option :value="String(i).padStart(2, '0')" x-text="String(i).padStart(2, '0')"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1.5 ml-1">终止节次</label>
+                    <select x-model="form.end"
+                        class="w-full bg-[#E5E5EA] rounded-xl py-3 px-4 text-[15px] appearance-none focus:outline-none">
+                        <template x-for="i in 11">
+                            <option :value="String(i).padStart(2, '0')" x-text="String(i).padStart(2, '0')"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button @click="search" :disabled="loading"
+                class="w-full bg-[#885021] text-white font-semibold py-3.5 rounded-xl btn-active transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-[#885021]/20">
+                <span x-show="!loading">查询空闲教室</span>
+                <span x-show="loading" class="flex items-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                        fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z">
+                        </path>
+                    </svg>
+                    查询中...
+                </span>
+            </button>
+        </div>
+
+        <!-- Info Bar -->
+        <div x-show="resultInfo" x-transition class="px-2 flex items-center justify-between text-xs text-gray-500">
+            <span x-text="resultInfo.date + ' (第' + resultInfo.week + '周 星期' + resultInfo.day + ')'"></span>
+            <span x-text="'共 ' + results.length + ' 间'"></span>
+        </div>
+
+        <!-- Results List -->
+        <div class="space-y-3" x-show="results.length > 0" x-transition>
+            <div class="grid grid-cols-2 gap-3">
+                <template x-for="room in results" :key="room">
+                    <div
+                        class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-center">
+                        <span class="text-[#885021] font-semibold text-lg" x-text="room"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="hasSearched && results.length === 0 && !loading" x-transition
+            class="py-10 flex flex-col items-center justify-center text-gray-400">
+            <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p>该时间段暂无空闲教室</p>
+        </div>
+
+    </main>
+
+    <script>
+        function app() {
+            return {
+                loading: false,
+                hasSearched: false,
+                results: [],
+                resultInfo: null, // { date: '', week: 0, day: 0 }
+                form: {
+                    building: '老文史楼', // Default for demo
+                    offset: 0,
+                    start: '01',
+                    end: '02'
+                },
+                async search() {
+                    if (!this.form.building) return alert('请输入教学楼');
+
+                    this.loading = true;
+                    this.hasSearched = false;
+                    this.results = [];
+                    this.resultInfo = null;
+
+                    try {
+                        const res = await axios.post('/api/v1/query', {
+                            building: this.form.building,
+                            start_node: this.form.start,
+                            end_node: this.form.end,
+                            date_offset: this.form.offset
+                        });
+
+                        this.results = res.data.classrooms || [];
+                        this.resultInfo = {
+                            date: res.data.date,
+                            week: res.data.week,
+                            day: res.data.day_of_week
+                        };
+                        this.hasSearched = true;
+                    } catch (error) {
+                        console.error(error);
+                        alert(error.response?.data?.error || '查询出错，请重试');
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  /* 曲奇棕主题色配置 */
+  --color-primary: #885021;
+  --color-primary-light: #8B5A2B;
+  --color-primary-lighter: #A67C52;
+  --color-primary-dark: #5D3615;
+  --color-primary-10: rgba(118, 69, 28, 0.1);
+
+  --color-cream: #F5E6D3;
+  --color-caramel: #C4956A;
+
+  --color-bg-page: #F2F2F7;
+  --color-bg-card: #FFFFFF;
+  --color-text-main: #1C1C1E;
+  --color-text-sub: #8E8E93;
+}
+
+/* Custom Utilities */
+.btn-active:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+}
+
+.safe-area-padding {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
