@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -20,6 +21,7 @@ type CalendarService struct {
 	currentYearStr string    // 学年学期 e.g. "2025-2026-1"
 	baseTime       time.Time // 获取周次的时间点
 	baseWeek       int       // 获取到的当前周次
+	hasPermission  bool      // 是否有权限访问
 	mu             sync.RWMutex
 }
 
@@ -50,6 +52,43 @@ func (s *CalendarService) Refresh() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// 尝试解析学期 (通常可以通过另一个接口获取，或者从其他页面获取)
+	// 这里为了简化，我们调用 jsjy_query 接口获取学年学期
+	// http://zhjw.qfnu.edu.cn/jsxsd/kbxx/jsjy_query
+	termUrl := "http://zhjw.qfnu.edu.cn/jsxsd/kbxx/jsjy_query"
+	termReq, _ := http.NewRequest("GET", termUrl, nil)
+	termResp, err := s.client.Do(termReq)
+	if err == nil {
+		defer termResp.Body.Close()
+
+		// 读取响应体内容以检查是否有权限
+		bodyBytes, _ := io.ReadAll(termResp.Body)
+		bodyString := string(bodyBytes)
+
+		// 检查是否包含 "非法访问"
+		if strings.Contains(bodyString, "非法访问") {
+			s.hasPermission = false
+			log.Println("警告：该账号无权限访问空教室查询接口 (jsjy_query)，请检查账号权限或登录状态。")
+		} else {
+			s.hasPermission = true
+		}
+
+		termDoc, _ := goquery.NewDocumentFromReader(strings.NewReader(bodyString))
+		// 查找包含学期的文本，例如 <td>学期：2025-2026-1 ...
+		// 简单粗暴正则匹配 d{4}-d{4}-\d
+		termText := termDoc.Text()
+		reTerm := regexp.MustCompile(`\d{4}-\d{4}-\d`)
+		termMatch := reTerm.FindString(termText)
+		if termMatch != "" {
+			s.currentYearStr = termMatch
+		}
+	} else {
+		// 如果请求失败，也认为是无权限的一种表现，或者是网络问题
+		// 默认设置为有权限，让用户去重试；或者根据错误类型判断
+		// 这里暂不修改 hasPermission，让后续逻辑处理
+		log.Printf("Warning: Failed to query term info: %v", err)
+	}
+
 	// 1. 获取教学周信息
 	// 接口：http://zhjw.qfnu.edu.cn/jsxsd/framework/jsMain_new.jsp?t1=1
 	// 响应示例：$("#li_showWeek").html("<span class=\"main_text main_color\">第18周</span>/20周");
@@ -78,38 +117,34 @@ func (s *CalendarService) Refresh() error {
 	matches := reWeek.FindStringSubmatch(htmlContent)
 	if len(matches) < 2 {
 		// 尝试匹配 "当前日期不在教学周历内"
-		if strings.Contains(htmlContent, "不在教学周历内") {
+		// 增加对 "非法访问" 的检查，如果是非法访问，则不认为是解析失败，而是权限不足或Session过期
+		if strings.Contains(htmlContent, "非法访问") {
+			s.baseWeek = 0
+			// 只有在还没有被 jsjy_query 标记为无权限时才打印，避免重复
+			if s.hasPermission {
+				log.Println("警告：访问首页周次接口检测到'非法访问'，可能无权限或 Session 过期。")
+				s.hasPermission = false
+			}
+		} else if strings.Contains(htmlContent, "不在教学周历内") {
 			// 这种情况下，可能需要默认一个值或报错，这里暂定为0
 			s.baseWeek = 0
 			log.Println("Warning: Current date is not in the teaching week calendar.")
 		} else {
-			return fmt.Errorf("failed to parse week info from response")
+			// 解析失败，但我们可以尝试容错，特别是当 hasPermission 为 false 时
+			// 如果已经确认无权限，那么解析失败是正常的，不要报错阻断服务
+			if !s.hasPermission {
+				log.Println("注意：因无权限访问，无法解析周次信息，服务将以受限模式运行。")
+				s.baseWeek = 0
+			} else {
+				// 真正无法解析的错误
+				return fmt.Errorf("failed to parse week info from response: content length %d", len(htmlContent))
+			}
 		}
 	} else {
 		week, _ := strconv.Atoi(matches[1])
 		s.baseWeek = week
 	}
 
-	// 尝试解析学期 (通常可以通过另一个接口获取，或者从其他页面获取)
-	// 这里为了简化，我们调用 jsjy_query 接口获取学年学期
-	// http://zhjw.qfnu.edu.cn/jsxsd/kbxx/jsjy_query
-	termUrl := "http://zhjw.qfnu.edu.cn/jsxsd/kbxx/jsjy_query"
-	termReq, _ := http.NewRequest("GET", termUrl, nil)
-	termResp, err := s.client.Do(termReq)
-	if err == nil {
-		defer termResp.Body.Close()
-		termDoc, _ := goquery.NewDocumentFromReader(termResp.Body)
-		// 查找包含学期的文本，例如 <td>学期：2025-2026-1 ...
-		// 简单粗暴正则匹配 d{4}-d{4}-\d
-		termText := termDoc.Text()
-		reTerm := regexp.MustCompile(`\d{4}-\d{4}-\d`)
-		termMatch := reTerm.FindString(termText)
-		if termMatch != "" {
-			s.currentYearStr = termMatch
-		}
-	}
-
-	// 如果没获取到，给个默认值防止崩
 	if s.currentYearStr == "" {
 		// 根据当前时间推算一个默认值，或者报错
 		// 假设当前是 2025-2026-1
@@ -195,4 +230,11 @@ func (s *CalendarService) GetDateInfo(offset int) (info model.CalendarInfo, date
 	}
 
 	return
+}
+
+// HasPermission 返回是否有权限访问
+func (s *CalendarService) HasPermission() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hasPermission
 }

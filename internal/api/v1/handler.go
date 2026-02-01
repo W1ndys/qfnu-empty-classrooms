@@ -34,6 +34,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 		"in_teaching_calendar": inCalendar,
 		"current_week":         cal.GetBaseWeek(),
 		"current_term":         cal.GetCurrentYearStr(),
+		"has_permission":       cal.HasPermission(),
 	})
 }
 

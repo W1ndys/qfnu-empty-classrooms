@@ -27,6 +27,23 @@
     <!-- Main Content -->
     <main class="px-4 py-4 space-y-4 max-w-xl mx-auto">
 
+        <!-- Permission Warning -->
+        <div x-show="!hasPermission && !statusLoading" x-transition
+            class="bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm">
+            <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0">
+                    <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-red-800 font-semibold">权限不足</h3>
+                    <p class="text-red-600 text-sm mt-1">当前账号无权限访问教务系统查询接口，请检查账号状态。</p>
+                </div>
+            </div>
+        </div>
+
         <!-- System Status Warning (Not in teaching calendar) -->
         <div x-show="!inTeachingCalendar && !statusLoading" x-transition
             class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
@@ -196,6 +213,7 @@
                 // System status
                 statusLoading: true,
                 inTeachingCalendar: true,
+                hasPermission: true,
                 currentWeek: 0,
                 currentTerm: '',
 
@@ -240,9 +258,11 @@
                         this.inTeachingCalendar = res.data.in_teaching_calendar;
                         this.currentWeek = res.data.current_week;
                         this.currentTerm = res.data.current_term;
+                        this.hasPermission = res.data.has_permission !== false; // Default to true if undefined
                     } catch (error) {
                         console.error('Failed to check status:', error);
                         this.inTeachingCalendar = false;
+                        this.hasPermission = true; // Assume permission if status check fails (or maybe false? stick to true to avoid noise)
                     } finally {
                         this.statusLoading = false;
                     }
