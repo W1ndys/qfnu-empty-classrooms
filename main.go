@@ -50,8 +50,8 @@ func main() {
 	if username != "" {
 		logger.Info("正在尝试登录 QFNU CAS...")
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
 		err := client.Login(ctx, username, password)
-		cancel()
 		if err != nil {
 			logger.Warn("登录失败：%v。程序将继续运行，但查询可能会失败。", err)
 		} else {
