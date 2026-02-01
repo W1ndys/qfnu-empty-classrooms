@@ -22,8 +22,8 @@ param(
     # 登录用户
     [string]$User = "root",
 
-    # 远程部署路径 (默认: /root/qfnu-cas-go)
-    [string]$RemotePath = "/root/qfnu-cas-go",
+    # 远程部署路径 (默认: /root/easy-qfnu-empty-classrooms)
+    [string]$RemotePath = "/root/easy-qfnu-empty-classrooms",
 
     # 部署完成后执行的命令
     [string]$RestartCmd = "echo 'Deploy finished, no restart command specified.'",
@@ -61,7 +61,7 @@ $sshCmdPrefix = @("ssh", "-i", "$IdentityFile", "-p", "$Port", "-o", "StrictHost
 
 # 2. 交叉编译 (Windows -> Linux)
 Write-Host "[-] 正在编译 Linux (amd64) 二进制文件..." -ForegroundColor Cyan
-$ProjectName = "qfnu-cas-go"
+$ProjectName = "easy-qfnu-empty-classrooms"
 $TargetOS = "linux"
 $TargetArch = "amd64"
 $BinaryName = "${ProjectName}-${TargetOS}-${TargetArch}"
