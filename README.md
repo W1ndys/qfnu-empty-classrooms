@@ -37,7 +37,18 @@ go run . -u <你的学号> -p <你的密码>
 ```env
 QFNU_USERNAME=你的学号
 QFNU_PASSWORD=你的密码
+PORT=8080
+GIN_MODE=release
 ```
+
+**环境变量说明：**
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `QFNU_USERNAME` 或 `QFNU_USER` | 学号 | 无 |
+| `QFNU_PASSWORD` 或 `QFNU_PASS` | 密码 | 无 |
+| `PORT` | 服务监听端口 | `8080` |
+| `GIN_MODE` | Gin 运行模式 (`debug`/`release`) | `debug` |
 
 然后直接运行，程序会自动读取配置：
 
