@@ -19,6 +19,11 @@ func main() {
 	// 加载 .env
 	_ = godotenv.Load()
 
+	// 设置 Gin 模式
+	if mode := os.Getenv("GIN_MODE"); mode != "" {
+		gin.SetMode(mode)
+	}
+
 	// 1. 初始化 CAS 客户端
 	// 注意：实际生产环境需要配置账号密码，用于获取 Session
 	username := os.Getenv("QFNU_USER")
