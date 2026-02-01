@@ -1,0 +1,28 @@
+{
+  "name": "qfnu-empty-classrooms",
+  "version": "1.0.0",
+  "description": "曲阜师范大学 (QFNU) 统一身份认证 (CAS) 登录的 Go 语言实现。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/W1ndys/qfnu-empty-classrooms.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/W1ndys/qfnu-empty-classrooms/issues"
+  },
+  "homepage": "https://github.com/W1ndys/qfnu-empty-classrooms#readme",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.18",
+    "tailwindcss": "^4.1.18"
+  }
+}
