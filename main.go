@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +9,7 @@ import (
 	v1 "github.com/W1ndys/qfnu-cas-go/internal/api/v1"
 	"github.com/W1ndys/qfnu-cas-go/internal/service"
 	"github.com/W1ndys/qfnu-cas-go/pkg/cas"
+	"github.com/W1ndys/qfnu-cas-go/pkg/logger"
 	"github.com/W1ndys/qfnu-cas-go/web"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -38,30 +38,30 @@ func main() {
 	}
 
 	if username == "" || password == "" {
-		log.Println("WARNING: QFNU_USER/QFNU_PASS not set. Backend queries will likely fail due to lack of session.")
+		logger.Warn("未设置 QFNU_USER/QFNU_PASS。由于缺少会话，后端查询可能会失败。")
 	}
 
 	client, err := cas.NewClient(cas.WithTimeout(30 * time.Second))
 	if err != nil {
-		log.Fatalf("Failed to create cas client: %v", err)
+		logger.Fatal("无法创建 CAS 客户端：%v", err)
 	}
 
 	// 尝试登录以获取 Session
 	if username != "" {
-		log.Println("Attempting to login to QFNU CAS...")
+		logger.Info("正在尝试登录 QFNU CAS...")
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		err := client.Login(ctx, username, password)
 		cancel()
 		if err != nil {
-			log.Printf("Login failed: %v. Continuing, but queries may fail.", err)
+			logger.Warn("登录失败：%v。程序将继续运行，但查询可能会失败。", err)
 		} else {
-			log.Println("Login successful.")
+			logger.Info("登录成功。")
 		}
 	}
 
 	// 2. 初始化服务
 	if err := service.InitCalendarService(client); err != nil {
-		log.Printf("Failed to init calendar service: %v. Calendar features may be inaccurate.", err)
+		logger.Warn("初始化日历服务失败：%v。日历功能可能不准确。", err)
 	}
 	classroomService := service.NewClassroomService(client)
 	apiHandler := v1.NewHandler(classroomService)
@@ -99,8 +99,8 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Server starting on http://localhost:%s", port)
+	logger.Info("服务器正在启动，监听地址：http://localhost:%s", port)
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal(err)
+		logger.Fatal("%v", err)
 	}
 }

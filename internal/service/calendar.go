@@ -3,7 +3,6 @@ package service
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/W1ndys/qfnu-cas-go/internal/model"
 	"github.com/W1ndys/qfnu-cas-go/pkg/cas"
+	"github.com/W1ndys/qfnu-cas-go/pkg/logger"
 )
 
 type CalendarService struct {
@@ -68,7 +68,7 @@ func (s *CalendarService) Refresh() error {
 		// 检查是否包含 "非法访问"
 		if strings.Contains(bodyString, "非法访问") {
 			s.hasPermission = false
-			log.Println("警告：该账号无权限访问空教室查询接口 (jsjy_query)，请检查账号权限或登录状态。")
+			logger.Warn("警告：该账号无权限访问空教室查询接口 (jsjy_query)，请检查账号权限或登录状态。")
 		} else {
 			s.hasPermission = true
 		}
@@ -86,7 +86,7 @@ func (s *CalendarService) Refresh() error {
 		// 如果请求失败，也认为是无权限的一种表现，或者是网络问题
 		// 默认设置为有权限，让用户去重试；或者根据错误类型判断
 		// 这里暂不修改 hasPermission，让后续逻辑处理
-		log.Printf("Warning: Failed to query term info: %v", err)
+		logger.Warn("警告：无法查询学期信息：%v", err)
 	}
 
 	// 1. 获取教学周信息
@@ -122,22 +122,22 @@ func (s *CalendarService) Refresh() error {
 			s.baseWeek = 0
 			// 只有在还没有被 jsjy_query 标记为无权限时才打印，避免重复
 			if s.hasPermission {
-				log.Println("警告：访问首页周次接口检测到'非法访问'，可能无权限或 Session 过期。")
+				logger.Warn("警告：访问首页周次接口检测到'非法访问'，可能无权限或 Session 过期。")
 				s.hasPermission = false
 			}
 		} else if strings.Contains(htmlContent, "不在教学周历内") {
 			// 这种情况下，可能需要默认一个值或报错，这里暂定为0
 			s.baseWeek = 0
-			log.Println("Warning: Current date is not in the teaching week calendar.")
+			logger.Warn("警告：当前日期不在教学周历内。")
 		} else {
 			// 解析失败，但我们可以尝试容错，特别是当 hasPermission 为 false 时
 			// 如果已经确认无权限，那么解析失败是正常的，不要报错阻断服务
 			if !s.hasPermission {
-				log.Println("注意：因无权限访问，无法解析周次信息，服务将以受限模式运行。")
+				logger.Warn("注意：因无权限访问，无法解析周次信息，服务将以受限模式运行。")
 				s.baseWeek = 0
 			} else {
 				// 真正无法解析的错误
-				return fmt.Errorf("failed to parse week info from response: content length %d", len(htmlContent))
+				return fmt.Errorf("无法从响应中解析周次信息，内容长度：%d", len(htmlContent))
 			}
 		}
 	} else {
@@ -152,7 +152,7 @@ func (s *CalendarService) Refresh() error {
 	}
 
 	s.baseTime = time.Now()
-	log.Printf("Calendar Initialized: Term=%s, Week=%d, BaseTime=%s", s.currentYearStr, s.baseWeek, s.baseTime.Format("2006-01-02"))
+	logger.Info("日历已初始化：学期=%s，周次=%d，基准时间=%s", s.currentYearStr, s.baseWeek, s.baseTime.Format("2006-01-02"))
 	return nil
 }
 

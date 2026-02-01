@@ -23,7 +23,7 @@ func NewClassroomService(client *cas.Client) *ClassroomService {
 func (s *ClassroomService) GetEmptyClassrooms(req model.QueryRequest) (*model.ClassroomResponse, error) {
 	cal := GetCalendarService()
 	if cal == nil {
-		return nil, fmt.Errorf("calendar service not initialized")
+		return nil, fmt.Errorf("日历服务未初始化")
 	}
 
 	// 1. 获取日期和周次信息
@@ -57,18 +57,18 @@ func (s *ClassroomService) GetEmptyClassrooms(req model.QueryRequest) (*model.Cl
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("query classroom failed: %w", err)
+		return nil, fmt.Errorf("查询空教室失败：%w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("query classroom status error: %d", resp.StatusCode)
+		return nil, fmt.Errorf("查询空教室状态错误：%d", resp.StatusCode)
 	}
 
 	// 3. 解析 HTML
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("parse html failed: %w", err)
+		return nil, fmt.Errorf("解析 HTML 失败：%w", err)
 	}
 
 	var classrooms []string
