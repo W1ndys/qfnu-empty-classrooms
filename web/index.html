@@ -27,8 +27,47 @@
     <!-- Main Content -->
     <main class="px-4 py-4 space-y-4 max-w-xl mx-auto">
 
+        <!-- System Status Warning (Not in teaching calendar) -->
+        <div x-show="!inTeachingCalendar && !statusLoading" x-transition
+            class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+            <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0">
+                    <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-amber-800 font-semibold">提示</h3>
+                    <p class="text-amber-600 text-sm mt-1">当前日期不在教学周历内，查询结果可能不准确。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Status -->
+        <div x-show="statusLoading" x-transition class="bg-white rounded-2xl p-6 shadow-sm text-center">
+            <svg class="animate-spin h-8 w-8 text-[#885021] mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-gray-500">正在检查系统状态...</p>
+        </div>
+
         <!-- Search Form Card -->
-        <div class="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+        <div x-show="!statusLoading" x-transition
+            class="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+
+            <!-- Current Status Info -->
+            <div x-show="inTeachingCalendar" class="bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
+                <div class="flex items-center space-x-2 text-green-700">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>当前：<strong x-text="currentTerm"></strong> 第<strong x-text="currentWeek"></strong>周</span>
+                </div>
+            </div>
 
             <!-- Building Input -->
             <div>
@@ -47,16 +86,37 @@
                 </div>
             </div>
 
-            <!-- Date Selection (Segmented Control) -->
+            <!-- Date Selection -->
             <div>
                 <label class="block text-sm font-medium text-gray-500 mb-1.5 ml-1">日期</label>
-                <div class="bg-[#E5E5EA] p-1 rounded-xl flex">
-                    <template x-for="(label, offset) in ['今天', '明天', '后天']">
-                        <button @click="form.offset = offset"
-                            :class="form.offset === offset ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+
+                <!-- Quick Select Buttons -->
+                <div class="bg-[#E5E5EA] p-1 rounded-xl flex mb-2">
+                    <template x-for="(label, idx) in quickDateLabels" :key="idx">
+                        <button @click="setQuickDate(idx)"
+                            :class="form.offset === idx && !useCustomDate ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                             class="flex-1 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200"
                             x-text="label"></button>
                     </template>
+                    <button @click="toggleCustomDate()"
+                        :class="useCustomDate ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        class="flex-1 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200">
+                        自定义
+                    </button>
+                </div>
+
+                <!-- Custom Date Input -->
+                <div x-show="useCustomDate" x-transition class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="flex-1 relative">
+                            <input type="number" x-model.number="customOffset" min="0" max="180"
+                                @input="updateCustomOffset()"
+                                class="w-full bg-[#E5E5EA] rounded-xl py-3 px-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#885021]/20 transition-all"
+                                placeholder="输入天数">
+                        </div>
+                        <span class="text-gray-500 text-sm whitespace-nowrap">天后</span>
+                    </div>
+                    <p class="text-xs text-gray-400 ml-1" x-text="customDatePreview"></p>
                 </div>
             </div>
 
@@ -76,7 +136,7 @@
                     <select x-model="form.end"
                         class="w-full bg-[#E5E5EA] rounded-xl py-3 px-4 text-[15px] appearance-none focus:outline-none">
                         <template x-for="i in 11">
-                            <option :value="String(i).padStart(2, '0')" x-text="String(i).padStart(2, '0')"></option>
+                            <option :value="String(i).padStart(2, '0')" x-text="String(i).padStart(2, '0')" :selected="i === 11"></option>
                         </template>
                     </select>
                 </div>
@@ -100,7 +160,8 @@
         </div>
 
         <!-- Info Bar -->
-        <div x-show="resultInfo" x-transition class="px-2 flex items-center justify-between text-xs text-gray-500">
+        <div x-show="resultInfo" x-transition
+            class="px-2 flex items-center justify-between text-xs text-gray-500">
             <span x-text="resultInfo.date + ' (第' + resultInfo.week + '周 星期' + resultInfo.day + ')'"></span>
             <span x-text="'共 ' + results.length + ' 间'"></span>
         </div>
@@ -132,16 +193,83 @@
     <script>
         function app() {
             return {
+                // System status
+                statusLoading: true,
+                inTeachingCalendar: true,
+                currentWeek: 0,
+                currentTerm: '',
+
+                // Query state
                 loading: false,
                 hasSearched: false,
                 results: [],
-                resultInfo: null, // { date: '', week: 0, day: 0 }
+                resultInfo: null,
+
+                // Date selection
+                quickDateLabels: ['今天', '明天', '后天'],
+                useCustomDate: false,
+                customOffset: 3,
+
+                // Form data
                 form: {
-                    building: '老文史楼', // Default for demo
+                    building: '',
                     offset: 0,
                     start: '01',
-                    end: '02'
+                    end: '11'
                 },
+
+                // Computed: custom date preview
+                get customDatePreview() {
+                    if (!this.useCustomDate) return '';
+                    const date = new Date();
+                    date.setDate(date.getDate() + this.customOffset);
+                    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+                    return `目标日期: ${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} (星期${weekDays[date.getDay()]})`;
+                },
+
+                // Initialize: check system status
+                async init() {
+                    await this.checkStatus();
+                },
+
+                // Check if system is available
+                async checkStatus() {
+                    this.statusLoading = true;
+                    try {
+                        const res = await axios.get('/api/v1/status');
+                        this.inTeachingCalendar = res.data.in_teaching_calendar;
+                        this.currentWeek = res.data.current_week;
+                        this.currentTerm = res.data.current_term;
+                    } catch (error) {
+                        console.error('Failed to check status:', error);
+                        this.inTeachingCalendar = false;
+                    } finally {
+                        this.statusLoading = false;
+                    }
+                },
+
+                // Set quick date (today, tomorrow, day after)
+                setQuickDate(offset) {
+                    this.useCustomDate = false;
+                    this.form.offset = offset;
+                },
+
+                // Toggle custom date mode
+                toggleCustomDate() {
+                    this.useCustomDate = !this.useCustomDate;
+                    if (this.useCustomDate) {
+                        this.form.offset = this.customOffset;
+                    }
+                },
+
+                // Update offset when custom input changes
+                updateCustomOffset() {
+                    if (this.customOffset < 0) this.customOffset = 0;
+                    if (this.customOffset > 180) this.customOffset = 180;
+                    this.form.offset = this.customOffset;
+                },
+
+                // Search for empty classrooms
                 async search() {
                     if (!this.form.building) return alert('请输入教学楼');
 
