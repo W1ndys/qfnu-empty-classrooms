@@ -1,6 +1,7 @@
 # custom ignores
 node_modules/
 dist/
+logs/
 web/css/style.css
 
 data/
