@@ -132,12 +132,13 @@ func (s *ClassroomService) GetFullDayStatus(req model.FullDayQueryRequest) (*mod
 	dayInt, _ := strconv.Atoi(calInfo.Xq)
 
 	return &model.FullDayStatusResponse{
-		Date:       dateStr,
-		Week:       weekInt,
-		DayOfWeek:  dayInt,
-		Building:   req.BuildingName,
-		NodeList:   nodeList,
-		Classrooms: classrooms,
+		Date:        dateStr,
+		Week:        weekInt,
+		DayOfWeek:   dayInt,
+		CurrentTerm: calInfo.Xnxqh,
+		Building:    req.BuildingName,
+		NodeList:    nodeList,
+		Classrooms:  classrooms,
 	}, nil
 }
 

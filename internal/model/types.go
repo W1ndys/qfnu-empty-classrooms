@@ -60,6 +60,7 @@ type FullDayStatusResponse struct {
 	Date       string                `json:"date"`        // 查询日期 (YYYY-MM-DD)
 	Week       int                   `json:"week"`        // 教学周
 	DayOfWeek  int                   `json:"day_of_week"` // 星期几 (1-7)
+	CurrentTerm string               `json:"current_term"` // 当前学期 (2025-2026-1)
 	Building   string                `json:"building"`    // 教学楼名称
 	NodeList   []NodeInfo            `json:"node_list"`   // 节次列表（用于前端表头）
 	Classrooms []ClassroomFullStatus `json:"classrooms"`  // 各教室全天状态列表
